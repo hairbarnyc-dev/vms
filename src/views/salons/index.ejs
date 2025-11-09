@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include('../partials/head') %>
+<body>
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0"><i class="fa-solid fa-shop"></i> Salons</h3>
+    <div>
+      <a class="btn btn-secondary me-2" href="/dashboard"><i class="fa-solid fa-house"></i> Dashboard</a>
+      <a class="btn btn-primary" href="/salons/create"><i class="fa-solid fa-plus"></i> New Salon</a>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-striped table-bordered">
+      <thead><tr>
+        <th>Name</th><th>Email</th><th>City</th><th>Region</th><th>Active</th><th>Actions</th>
+      </tr></thead>
+      <tbody>
+        <% rows.forEach(r => { %>
+          <tr>
+            <td><%= r.name %></td>
+            <td><%= r.email || '' %></td>
+            <td><%= r.city || '' %></td>
+            <td><%= r.region || '' %></td>
+            <td><span class="badge bg-<%= r.is_active? 'success':'secondary' %>"><%= r.is_active? 'Yes':'No' %></span></td>
+            <td class="text-nowrap">
+              <a class="btn btn-sm btn-outline-primary" href="/salons/<%= r.id %>/edit"><i class="fa-solid fa-pen"></i></a>
+              <form method="post" action="/salons/<%= r.id %>/delete" style="display:inline" onsubmit="return confirm('Delete this salon?')">
+                <button class="btn btn-sm btn-outline-danger"><i class="fa-solid fa-trash"></i></button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+        <% if (!rows.length) { %>
+          <tr><td colspan="6" class="text-center text-muted">No salons yet.</td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<%- include('../partials/foot') %>

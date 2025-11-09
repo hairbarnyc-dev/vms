@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include('../partials/headLogin') %>
+<body class="bg-light">
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-5">
+      <div class="card shadow-sm">
+        <div class="card-body p-4">
+          <h4 class="mb-3"><i class="fa-solid fa-ticket"></i> VMS Login</h4>
+          <% if (typeof showError !== 'undefined' && showError) { %>
+            <div class="alert alert-danger">Invalid email or password.</div>
+          <% } %>
+          <form method="post" action="/login">
+            <div class="mb-3">
+              <label class="form-label">Email</label>
+              <input name="email" type="email" class="form-control" required value="admin@vms.local">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Password</label>
+              <input name="password" type="password" class="form-control" required value="Admin@12345">
+            </div>
+            <button class="btn btn-primary w-100"><i class="fa-solid fa-right-to-bracket"></i> Sign in</button>
+            <a href="/forgot" class="forgotPasswordLink">Forgot password</a>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+  <footer class="footer">
+    <div class="container-fluid d-flex justify-content-between">
+    <nav class="pull-left">
+    </nav>
+    <div class="copyright">
+        &copy; <%= new Date().getFullYear() %> VMS, made with <i class="fa fa-heart heart text-danger"></i>
+    </div>
+    <div>
+    </div>
+    </div>
+</footer>
+</body>
+</html>

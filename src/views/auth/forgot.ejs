@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include('../partials/headLogin') %>
+<body class="bg-light">
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-5">
+      <div class="card shadow-sm">
+        <div class="card-body p-4">
+  <h4 class="mb-3"><i class="fa-solid fa-unlock-keyhole"></i> Forgot Password</h4>
+  <% if (err) { %><div class="alert alert-danger"><%= err %></div><% } %>
+  <% if (msg) { %><div class="alert alert-success"><%= msg %></div><% } %>
+  <form method="post" action="/forgot" class="row g-3">
+    <div class="col-md-12">
+      <label class="form-label">Email</label>
+      <input type="email" class="form-control" name="email" required>
+    </div>
+    <div class="col-12">
+      <button class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Send OTP</button>
+      <a class="btn btn-secondary" href="/login"><i class="fa-solid fa-arrow-left"></i> Back to Login</a>
+    </div>
+  </form>
+ </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script src="/vendor/bootstrap/bootstrap.bundle.min.js" defer></script>
+<footer class="footer">
+    <div class="container-fluid d-flex justify-content-between">
+    <nav class="pull-left">
+    </nav>
+    <div class="copyright">
+        &copy; <%= new Date().getFullYear() %> VMS, made with <i class="fa fa-heart heart text-danger"></i>
+    </div>
+    <div>
+    </div>
+    </div>
+</footer>
+</body>
+</html>

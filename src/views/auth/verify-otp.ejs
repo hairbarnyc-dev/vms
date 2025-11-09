@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include('../partials/headLogin') %>
+<div class="container py-4">
+  <h3><i class="fa-solid fa-shield-keyhole"></i> Verify OTP</h3>
+  <% if (err) { %><div class="alert alert-danger"><%= err %></div><% } %>
+  <% if (msg) { %><div class="alert alert-success"><%= msg %></div><% } %>
+
+  <form method="post" action="/forgot/verify" class="row g-2">
+    <input type="hidden" name="email" value="<%= email %>">
+    <div class="col-md-4">
+      <label class="form-label">OTP Code</label>
+      <input class="form-control" name="otp" maxlength="6" required>
+    </div>
+    <div class="col-md-3 d-flex align-items-end">
+      <button class="btn btn-primary w-100"><i class="fa-solid fa-check"></i> Verify</button>
+    </div>
+  </form>
+
+  <form method="post" action="/forgot/resend" class="row g-2 mt-2">
+    <input type="hidden" name="email" value="<%= email %>">
+    <div class="col-md-4 d-flex align-items-end">
+      <button id="btnResend" class="btn btn-outline-secondary w-100" <%= (resendRemainingSec>0)?'disabled':'' %>>
+        <i class="fa-solid fa-rotate"></i> Resend OTP
+      </button>
+    </div>
+    <div class="col-md-4 d-flex align-items-end">
+      <span id="resendTimer" class="text-muted"></span>
+    </div>
+  </form>
+</div>
+<footer class="footer">
+    <div class="container-fluid d-flex justify-content-between">
+    <nav class="pull-left">
+    </nav>
+    <div class="copyright">
+        &copy; <%= new Date().getFullYear() %> VMS, made with <i class="fa fa-heart heart text-danger"></i>
+    </div>
+    <div>
+    </div>
+    </div>
+</footer>
+<script>window.__resendSec=<%= resendRemainingSec || 0 %>;</script>
+<script src="/vendor/bootstrap/bootstrap.bundle.min.js" defer></script>
+<script src="/js/otp.js" defer></script>
+</body>
+</html>
+

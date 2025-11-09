@@ -1,0 +1,48 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Node / JS
+node_modules/
+npm-debug.log*
+yarn.lock
+pnpm-lock.yaml
+dist/
+build/
+coverage/
+.cache/
+.next/
+out/
+
+# Env & secrets
+.env
+.env.*
+*.key
+*.pem
+
+# Logs & runtime
+logs/
+*.log
+pids/
+*.pid
+*.seed
+tmp/
+storage/
+uploads/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# PHP / Composer (if present)
+vendor/
+composer.lock
+
+# Front-end bundles
+public/assets/*
+!public/assets/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.iml

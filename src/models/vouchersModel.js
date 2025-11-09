@@ -1,0 +1,124 @@
+import { pool } from '../config/db.js'
+
+export const createVoucher = async (data) => {
+  const { code, salon_id, order_id, customer_id, title, face_value, currency, expires_at } = data
+  const [res] = await pool.query(
+    `INSERT INTO vouchers
+     (code, salon_id, order_id, customer_id, title, face_value, currency, expires_at)
+     VALUES (?,?,?,?,?,?,?,?)`,
+    [code, salon_id || null, order_id || null, customer_id || null, title, face_value || 0, currency || 'CAD', expires_at]
+  )
+  return res.insertId
+}
+
+export const getByCode = async (code) => {
+  const [rows] = await pool.query('SELECT * FROM vouchers WHERE code=? AND is_deleted=0 LIMIT 1', [code])
+  return rows[0]
+}
+export const getById = async (id) => {
+  const [rows] = await pool.query('SELECT * FROM vouchers WHERE id=? AND is_deleted=0', [id])
+  return rows[0]
+}
+
+export const list = async ({ page = 1, pageSize = 20, q, status, salon_id, date_from, date_to }) => {
+  const offset = (page - 1) * pageSize
+  const params = []
+  const where = ['v.is_deleted=0']
+  if (q) { where.push('(v.code LIKE ? OR v.title LIKE ?)'); params.push(`%${q}%`, `%${q}%`) }
+  if (status) { where.push('v.status=?'); params.push(status) }
+  if (salon_id) { where.push('v.salon_id=?'); params.push(Number(salon_id)) }
+  if (date_from) { where.push('v.created_at>=?'); params.push(new Date(date_from)) }
+  if (date_to) { where.push('v.created_at<?'); params.push(new Date(date_to)) }
+
+  const [rows] = await pool.query(
+    `SELECT v.*, s.name AS salon_name
+     FROM vouchers v
+     LEFT JOIN salons s ON s.id=v.salon_id
+     WHERE ${where.join(' AND ')}
+     ORDER BY v.created_at DESC
+     LIMIT ? OFFSET ?`,
+    [...params, pageSize, offset]
+  )
+  return rows
+}
+
+/** NEW: All non-redeemed vouchers for a specific salon */
+export const listAvailableForSalon = async (salon_id, { page = 1, pageSize = 50 } = {}) => {
+  const offset = (page - 1) * pageSize
+  const [rows] = await pool.query(
+    `SELECT v.*, s.name AS salon_name
+     FROM vouchers v
+     LEFT JOIN salons s ON s.id=v.salon_id
+     WHERE v.is_deleted=0
+       AND v.status='AVAILABLE'
+       AND (v.salon_id = ? OR v.salon_id IS NULL)
+     ORDER BY v.created_at DESC
+     LIMIT ? OFFSET ?`,
+    [Number(salon_id), pageSize, offset]
+  )
+  return rows
+}
+
+/** NEW: Vouchers redeemed at a given salon (even if the voucher belongs elsewhere) */
+export const listRedeemedAtSalon = async (salon_id, { page = 1, pageSize = 50 } = {}) => {
+  const offset = (page - 1) * pageSize
+  const [rows] = await pool.query(
+    `SELECT v.*, s.name AS voucher_salon_name, r.redeemed_at
+     FROM redemptions r
+     JOIN vouchers v ON v.id=r.voucher_id AND v.is_deleted=0
+     LEFT JOIN salons s ON s.id=v.salon_id
+     WHERE r.is_deleted=0 AND r.salon_id=?
+     ORDER BY r.redeemed_at DESC
+     LIMIT ? OFFSET ?`,
+    [Number(salon_id), pageSize, offset]
+  )
+  return rows
+}
+
+export const update = async (id, payload) => {
+  const fields = ['title','face_value','currency','expires_at','status','notes','salon_id','customer_id','code']
+  const sets = []
+  const vals = []
+  fields.forEach(f => {
+    if (payload[f] !== undefined) { sets.push(`${f}=?`); vals.push(payload[f]) }
+  })
+  if (!sets.length) return
+  vals.push(id)
+  await pool.query(`UPDATE vouchers SET ${sets.join(', ')} WHERE id=? AND is_deleted=0`, vals)
+}
+
+export const softDelete = async (id) => {
+  await pool.query('UPDATE vouchers SET is_deleted=1, deleted_at=NOW() WHERE id=? AND is_deleted=0', [id])
+}
+
+
+export const voidAtSalon = async ({ voucher_id, salon_id, user_id, notes }) => {
+  // Optional notes can be saved in vouchers.notes (append)
+  if (notes) {
+    await pool.query('UPDATE vouchers SET notes = CONCAT(IFNULL(notes,""), ?) WHERE id=? AND is_deleted=0', [`\n[VOID NOTE] ${notes}`, voucher_id])
+  }
+  await pool.query(
+    `UPDATE vouchers
+       SET status='VOID',
+           voided_at = NOW(),
+           voided_by_user_id = ?,
+           voided_at_salon_id = ?
+     WHERE id=? AND is_deleted=0 AND status <> 'VOID'`,
+    [user_id, salon_id || null, voucher_id]
+  )
+}
+
+// NEW: list of vouchers voided at a specific salon
+export const listVoidedAtSalon = async (salon_id, { page = 1, pageSize = 50 } = {}) => {
+  const offset = (page - 1) * pageSize
+  const [rows] = await pool.query(
+    `SELECT v.*, s.name AS voucher_salon_name
+     FROM vouchers v
+     LEFT JOIN salons s ON s.id=v.salon_id
+     WHERE v.is_deleted=0 AND v.status='VOID' AND v.voided_at_salon_id=?
+     ORDER BY v.voided_at DESC
+     LIMIT ? OFFSET ?`,
+    [Number(salon_id), pageSize, offset]
+  )
+  return rows
+}

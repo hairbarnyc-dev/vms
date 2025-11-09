@@ -1,0 +1,12 @@
+.logo img {
+    width: 100px !important;
+}
+.forgotPasswordLink {
+    margin: 20px auto 0 !important;
+    width: fit-content;
+    display: inline-block;
+    float: none;
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%);
+}

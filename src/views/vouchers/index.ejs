@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include('../partials/head') %>
+<body>
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0"><i class="fa-solid fa-ticket"></i> <%= viewTitle || 'Vouchers' %></h3>
+    <div>
+      <a class="btn btn-secondary" href="/dashboard"><i class="fa-solid fa-house"></i> Dashboard</a>
+      <% if (!isSalonUser) { %>
+        <a class="btn btn-primary ms-2" href="/vouchers/manage"><i class="fa-solid fa-sliders"></i> Manage</a>
+      <% } %>
+    </div>
+  </div>
+
+  <% if (isSalonUser) { %>
+    <ul class="nav nav-tabs mb-3">
+      <li class="nav-item">
+        <a class="nav-link <%= activeTab==='available'?'active':'' %>" href="/vouchers">Available</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link <%= activeTab==='redeemed'?'active':'' %>" href="/vouchers/redeemed">Redeemed at Your Salon</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link <%= activeTab==='voided'?'active':'' %>" href="/vouchers/voided">Voided at Your Salon</a>
+      </li>
+    </ul>
+  <% } %>
+
+  <div class="table-responsive">
+    <table class="table table-striped table-bordered align-middle">
+      <thead>
+        <tr>
+          <th>Code</th>
+          <th>Title</th>
+          <% if (!isSalonUser || activeTab!=='available') { %>
+            <th>Salon</th>
+          <% } %>
+          <th>Status</th>
+          <% if (activeTab==='redeemed') { %>
+            <th>Redeemed At</th>
+          <% } else if (activeTab==='voided') { %>
+            <th>Voided At</th>
+          <% } else { %>
+            <th>Created</th>
+          <% } %>
+          <% if (isSalonUser && activeTab==='available') { %>
+            <th class="text-end">Actions</th>
+          <% } %>
+        </tr>
+      </thead>
+      <tbody>
+        <% rows.forEach(r => { %>
+          <tr>
+            <td><code><%= r.code %></code></td>
+            <td><%= r.title %></td>
+            <% if (!isSalonUser || activeTab!=='available') { %>
+              <td><%= (r.salon_name || r.voucher_salon_name || '-') %></td>
+            <% } %>
+            <td>
+              <span class="badge bg-<%= r.status==='AVAILABLE'?'success':(r.status==='REDEEMED'?'secondary':'danger') %>">
+                <%= r.status %>
+              </span>
+            </td>
+            <% if (activeTab==='redeemed') { %>
+              <td><%= new Date(r.redeemed_at).toLocaleString() %></td>
+            <% } else if (activeTab==='voided') { %>
+              <td><%= r.voided_at ? new Date(r.voided_at).toLocaleString() : '' %></td>
+            <% } else { %>
+              <td><%= new Date(r.created_at).toLocaleString() %></td>
+            <% } %>
+
+            <% if (isSalonUser && activeTab==='available') { %>
+              <td class="text-end">
+                <button class="btn btn-sm btn-success me-2 js-open-redeem"
+                        data-code="<%= r.code %>" data-title="<%= r.title %>">
+                  <i class="fa-solid fa-check"></i> Redeem
+                </button>
+                <button class="btn btn-sm btn-danger js-open-void"
+                        data-code="<%= r.code %>" data-title="<%= r.title %>">
+                  <i class="fa-solid fa-ban"></i> Void
+                </button>
+              </td>
+            <% } %>
+          </tr>
+        <% }) %>
+        <% if (!rows.length) { %>
+          <tr>
+            <td colspan="<%= (!isSalonUser || activeTab!=='available') ? 5 : 6 %>" class="text-center text-muted">
+              No vouchers to show.
+            </td>
+          </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Redeem Modal -->
+<div class="modal fade" id="redeemModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" method="post" action="/vouchers/action/redeem">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa-solid fa-check"></i> Redeem Voucher</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label">Voucher Code</label>
+          <input name="code" class="form-control" id="redeemCode" readonly>
+        </div>
+        <div class="mb-0">
+          <label class="form-label">Notes (optional)</label>
+          <textarea name="notes" class="form-control" rows="2" placeholder="Add any notes..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-success"><i class="fa-solid fa-check"></i> Confirm Redeem</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Void Modal -->
+<div class="modal fade" id="voidModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" method="post" action="/vouchers/action/void"
+          onsubmit="return confirm('Are you sure you want to VOID this voucher?');">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa-solid fa-ban"></i> Void Voucher</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label">Voucher Code</label>
+          <input name="code" class="form-control" id="voidCode" readonly>
+        </div>
+        <div class="mb-0">
+          <label class="form-label">Reason / Notes (optional)</label>
+          <textarea name="notes" class="form-control" rows="2" placeholder="Reason for voiding..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-danger"><i class="fa-solid fa-ban"></i> Confirm Void</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Bootstrap JS (if not already included in your partials) -->
+<script src="/vendor/bootstrap/bootstrap.bundle.min.js" defer></script>
+<script src="/js/vouchers.js" defer></script>
+<%- include('../partials/foot') %>

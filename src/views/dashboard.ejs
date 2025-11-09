@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include('partials/head') %>
+
+
+<div class="container py-4">
+  <h3 class="mb-3"><i class="fa-solid fa-chart-line"></i> Dashboard</h3>
+
+  <!-- Filters -->
+  <form class="row g-2 mb-3" method="get">
+    <div class="col-md-3">
+      <label class="form-label">Status</label>
+      <select class="form-select" name="status">
+        <option value="">All</option>
+        <option value="AVAILABLE" <%= filters.status==='AVAILABLE'?'selected':'' %>>AVAILABLE</option>
+        <option value="REDEEMED"  <%= filters.status==='REDEEMED'?'selected':'' %>>REDEEMED</option>
+        <option value="VOID"      <%= filters.status==='VOID'?'selected':'' %>>VOID</option>
+      </select>
+    </div>
+    <% if (!isSalonUser) { %>
+      <div class="col-md-3">
+        <label class="form-label">Salon</label>
+        <select class="form-select" name="salon_id">
+          <option value="">All</option>
+          <% salons.forEach(s => { %>
+            <option value="<%= s.id %>" <%= String(filters.salon_id)===String(s.id)?'selected':'' %>><%= s.name %></option>
+          <% }) %>
+        </select>
+      </div>
+    <% } %>
+    <div class="col-md-2">
+      <label class="form-label">From</label>
+      <input type="date" class="form-control" name="date_from" value="<%= filters.date_from || '' %>">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">To</label>
+      <input type="date" class="form-control" name="date_to" value="<%= filters.date_to || '' %>">
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+      <button class="btn btn-primary w-100"><i class="fa-solid fa-filter"></i> Apply</button>
+    </div>
+  </form>
+
+  <!-- KPI cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-3"><div class="card shadow-sm"><div class="card-body">
+      <div class="text-muted">Total Vouchers</div>
+      <div class="h4"><%= metrics.total || 0 %></div>
+    </div></div></div>
+    <div class="col-md-3"><div class="card shadow-sm"><div class="card-body">
+      <div class="text-muted">Available</div>
+      <div class="h4 text-success"><%= metrics.available || 0 %></div>
+    </div></div></div>
+    <div class="col-md-3"><div class="card shadow-sm"><div class="card-body">
+      <div class="text-muted">Redeemed</div>
+      <div class="h4 text-secondary"><%= metrics.redeemed || 0 %></div>
+    </div></div></div>
+    <div class="col-md-3"><div class="card shadow-sm"><div class="card-body">
+      <div class="text-muted">Voided</div>
+      <div class="h4 text-danger"><%= metrics.voided || 0 %></div>
+    </div></div></div>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h5 class="mb-0"><i class="fa-solid fa-receipt"></i> Recent Redemptions (7 days)</h5>
+    <div>
+      <a class="btn btn-outline-secondary btn-sm" href="/api/v1/reports/vouchers.csv?<%= new URLSearchParams(filters).toString() %>"><i class="fa-solid fa-file-csv"></i> Export CSV</a>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-striped table-bordered">
+      <thead><tr><th>When</th><th>Code</th><th>Title</th><th>Salon</th></tr></thead>
+      <tbody>
+        <% recent.forEach(r => { %>
+          <tr>
+            <td><%= new Date(r.redeemed_at).toLocaleString() %></td>
+            <td><%= r.code %></td>
+            <td><%= r.title %></td>
+            <td><%= r.salon_name || '-' %></td>
+          </tr>
+        <% }) %>
+        <% if (!recent.length) { %>
+          <tr><td colspan="4" class="text-center text-muted">No redemptions in last 7 days.</td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<%- include('partials/foot') %>
