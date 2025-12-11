@@ -21,7 +21,7 @@
     </div>
     <div class="col-md-2">
       <label class="form-label">Face Value</label>
-      <input name="face_value" type="number" step="0.01" class="form-control" value="<%= row.face_value||0 %>">
+      <input id="faceValueInput" name="face_value" type="number" step="0.01" class="form-control" value="<%= row.face_value||0 %>">
     </div>
     <div class="col-md-2">
       <label class="form-label">Currency</label>
@@ -53,9 +53,67 @@
       <label class="form-label">Notes</label>
       <textarea name="notes" class="form-control" rows="2"><%= row.notes||'' %></textarea>
     </div>
+
+    <div class="col-12">
+      <hr>
+      <h5>Order Details</h5>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Order Number / External ID</label>
+      <input name="order_external_id" class="form-control" value="<%= order?.order_id || order?.external_id || '' %>" placeholder="#1234 or wc_1234">
+      <div class="form-text">Used as both order number and external ID (must be unique).</div>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Source</label>
+      <input name="order_source" class="form-control" value="<%= order?.source || '' %>" placeholder="e.g. wordpress-site.com">
+      <div class="form-text">Where this order originated (store URL or label).</div>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Order Total</label>
+      <input id="orderTotalInput" name="order_total" type="number" step="0.01" class="form-control"
+             value="<%= order?.order_total || order?.amount || row.face_value || '' %>">
+      <div class="form-text">Face value will mirror this total automatically.</div>
+    </div>
+
+    <div class="col-12">
+      <div class="card shadow-sm mt-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <strong>Order Products</strong>
+          <button type="button" class="btn btn-sm btn-outline-primary" id="add-product-row">
+            <i class="fa-solid fa-plus"></i> Add Product
+          </button>
+        </div>
+        <div class="card-body" id="products-repeater">
+          <% const productRows = (order?.products && order.products.length ? order.products : [null]); %>
+          <% productRows.forEach((p, idx) => { %>
+            <div class="row g-2 align-items-end product-row mb-2">
+              <div class="col-md-5">
+                <label class="form-label">Product Name</label>
+                <input class="form-control" name="product_name[]" value="<%= p?.product_name || '' %>" placeholder="Name">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Product ID / SKU</label>
+                <input class="form-control" name="product_id[]" value="<%= p?.product_id || '' %>" placeholder="Optional ID">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Price</label>
+                <input class="form-control" name="product_price[]" type="number" step="0.01" value="<%= p?.product_price || '' %>">
+              </div>
+              <div class="col-md-1 text-end">
+                <button type="button" class="btn btn-outline-danger btn-remove-row" <%= idx===0 && !p ? 'disabled' : '' %>>
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      </div>
+    </div>
+
     <div class="col-12">
       <button class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save</button>
     </div>
   </form>
 </div>
+<script src="/js/voucher-form.js" defer></script>
 <%- include('../partials/foot') %>

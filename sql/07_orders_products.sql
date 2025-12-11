@@ -1,0 +1,15 @@
+USE vms;
+
+ALTER TABLE orders
+  ADD COLUMN order_id VARCHAR(64) NULL AFTER external_id,
+  ADD COLUMN order_total DECIMAL(10,2) NULL AFTER amount;
+
+CREATE TABLE IF NOT EXISTS order_products (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  order_id BIGINT UNSIGNED NOT NULL,
+  product_id VARCHAR(64) NULL,
+  product_name VARCHAR(190) NOT NULL,
+  product_price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_order_products_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+) ENGINE=InnoDB;

@@ -70,9 +70,11 @@ CREATE TABLE IF NOT EXISTS customers (
 CREATE TABLE IF NOT EXISTS orders (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   external_id VARCHAR(64) NOT NULL,
+  order_id VARCHAR(64) NULL,
   source VARCHAR(32) NOT NULL,
   customer_id BIGINT UNSIGNED,
   amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  order_total DECIMAL(10,2) NULL,
   currency CHAR(3) DEFAULT 'CAD',
   status ENUM('PENDING','COMPLETED','CANCELLED','REFUNDED') DEFAULT 'COMPLETED',
   is_deleted TINYINT(1) NOT NULL DEFAULT 0,
@@ -80,6 +82,17 @@ CREATE TABLE IF NOT EXISTS orders (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(id),
   UNIQUE KEY uq_orders_source_external (source, external_id)
+) ENGINE=InnoDB;
+
+-- Order products
+CREATE TABLE IF NOT EXISTS order_products (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  order_id BIGINT UNSIGNED NOT NULL,
+  product_id VARCHAR(64) NULL,
+  product_name VARCHAR(190) NOT NULL,
+  product_price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_order_products_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- Vouchers

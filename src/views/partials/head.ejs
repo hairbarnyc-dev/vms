@@ -116,13 +116,19 @@
                 </a>
                 <div class="collapse <%= vouchersOpen ? 'show' : '' %>" id="vouchers">
                     <ul class="nav nav-collapse">
-                    <li class="<%= equalsPath('/vouchers') || startsWith('/vouchers/redeemed') || startsWith('/vouchers/voided') ? 'active' : '' %>">
-                        <a href="/vouchers"><span class="sub-item">All vouchers</span></a>
+                    <%
+                      const vouchersListActive = salonFlag
+                        ? (equalsPath('/vouchers') || startsWith('/vouchers/redeemed') || startsWith('/vouchers/voided'))
+                        : equalsPath('/vouchers/manage');
+                      const vouchersListHref = salonFlag ? '/vouchers' : '/vouchers/manage';
+                    %>
+                    <li class="<%= vouchersListActive ? 'active' : '' %>">
+                        <a href="<%= vouchersListHref %>"><span class="sub-item">All vouchers</span></a>
                     </li>
 
                     <% if (!salonFlag) { %>
-                    <li class="<%= equalsPath('/vouchers/manage') || startsWith('/vouchers/create') ? 'active' : '' %>">
-                        <a href="/vouchers/manage"><span class="sub-item">Add new</span></a>
+                    <li class="<%= equalsPath('/vouchers/create') ? 'active' : '' %>">
+                        <a href="/vouchers/create"><span class="sub-item">Add new</span></a>
                     </li>
                     <% } %>
                     </ul>

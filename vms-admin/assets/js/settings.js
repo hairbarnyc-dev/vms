@@ -1,0 +1,1 @@
+// Settings page uses native WP form; JS not required yet.

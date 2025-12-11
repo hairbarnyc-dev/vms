@@ -1,0 +1,9 @@
+.vms-admin-wrap h1 { margin-bottom: 16px; }
+.vms-modal { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; z-index: 10000; }
+.vms-modal[hidden] { display: none; }
+.vms-modal__dialog { background: #fff; width: 520px; max-width: 95vw; border-radius: 6px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,.2);}
+.vms-modal__header, .vms-modal__footer { padding: 12px; background: #f8f9fa; }
+.vms-modal__body { padding: 12px; }
+.vms-modal__close { float:right; font-size: 20px; }
+.vms-codes { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 16px; }
+.column-actions { width: 210px; }
