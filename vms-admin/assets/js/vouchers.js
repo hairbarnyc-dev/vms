@@ -22,35 +22,44 @@
   }
   function renderRows(items) {
     if (!Array.isArray(items) || !items.length)
-      return '<tr><td colspan="8"><em>No vouchers found.</em></td></tr>';
+      return '<tr><td colspan="9"><em>No vouchers found.</em></td></tr>';
     return items
       .map((v) => {
-        const salonName = v.salon_name || "-";
-        const orderSource = v.order_source || (v.order && v.order.source) || "-";
-        const orderNumber =
-          v.order_number ||
-          (v.order && (v.order.order_id || v.order.external_id)) ||
-          v.order_external_id ||
-          "-";
-        const created = v.created_at
-          ? new Date(v.created_at).toLocaleString()
+        const wp = v.wp || {};
+        const serviceName = wp.product_name || v.title || "-";
+        const grandTotal = wp.grand_total || v.face_value || "0.00";
+        const customerName = wp.customer_name || v.customer_name || "-";
+        const customerEmail = wp.customer_email || v.customer_email || "";
+        const customerLink = wp.customer_link || "";
+        const voucherDate = v.created_at
+          ? new Date(v.created_at).toLocaleDateString()
           : "";
+        const expDate = v.expires_at
+          ? new Date(v.expires_at).toLocaleDateString()
+          : "";
+        const isRedeemed = String(v.status || "").toUpperCase() === "REDEEMED";
+        const redeemedAt = v.redeemed_at
+          ? new Date(v.redeemed_at).toLocaleDateString()
+          : "";
+        const redeemedSalon = v.redeemed_salon_name || v.salon_name || "-";
+        const redeemedCell = isRedeemed
+          ? (redeemedAt ? `${redeemedSalon}<br>${redeemedAt}` : redeemedSalon)
+          : "—";
         const actions = `
- <a class="button" href="${
-   VMSAdmin.base
- }?page=vms-admin-voucher-details&code=${encodeURIComponent(v.code)}">Details</a>
- <button class="button vms-act-redeem" data-code="${v.code}">Redeem</
-button>
+ <button class="button vms-act-redeem" data-code="${v.code}">Redeem</button>
  <button class="button vms-act-void" data-code="${v.code}">Void</button>
  `;
         return `<tr>
-          <td>${v.code}</td>
-          <td>${v.title || ""}</td>
-          <td>${salonName}</td>
-          <td>${orderSource}</td>
-          <td>${orderNumber}</td>
+          <td><a href="${VMSAdmin.base}?page=vms-admin-voucher-details&code=${encodeURIComponent(v.code)}">${v.code}</a></td>
+          <td>${serviceName}</td>
+          <td>${grandTotal}</td>
+          <td>${customerLink ? `<a href="${customerLink}">${customerName}</a>` : customerName}${
+            customerEmail ? `<br><a href="mailto:${customerEmail}">${customerEmail}</a>` : ""
+          }</td>
+          <td>${voucherDate}</td>
+          <td>${expDate}</td>
           <td>${v.status || ""}</td>
-          <td>${created}</td>
+          <td>${redeemedCell}</td>
           <td>${actions}</td>
         </tr>`;
       })
@@ -129,7 +138,7 @@ option>`
       if (res && res.success) {
         alert("Voided");
         VMSModal.close();
-        jQuery("#vmsfilters").trigger("submit");
+        jQuery("#vms-filters").trigger("submit");
       } else {
         alert("Error voiding");
       }
@@ -156,7 +165,7 @@ option>`)
         jQuery("#vms-vouchers-table tbody").html(renderRows(items));
       } catch (err) {
         jQuery("#vms-vouchers-table tbody").html(
-          '<tr><td colspan="6">Error loading vouchers</td></tr>'
+          '<tr><td colspan="9">Error loading vouchers</td></tr>'
         );
       }
     });

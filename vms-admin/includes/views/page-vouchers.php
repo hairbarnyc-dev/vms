@@ -25,16 +25,17 @@
 
 <table class="widefat fixed striped" id="vms-vouchers-table">
 <thead><tr>
-<th>Code</th>
-<th>Title</th>
-<th>Salon</th>
-<th>Source</th>
-<th>Order #</th>
+<th>Voucher code</th>
+<th>Service name</th>
+<th>Grand total</th>
+<th>Customer</th>
+<th>Voucher date</th>
+<th>Expiration date</th>
 <th>Status</th>
-<th>Created</th>
+<th>Redeemed at/on</th>
 <th class="column-actions">Actions</th>
 </tr></thead>
-<tbody><tr><td colspan="8"><em>Use filters to load vouchers…</em></td></tr></tbody>
+<tbody><tr><td colspan="9"><em>Use filters to load vouchers…</em></td></tr></tbody>
 </table>
 </div>
 

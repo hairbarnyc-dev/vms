@@ -21,6 +21,11 @@ public static function enqueue( $hook ){
   $page = isset($_GET['page']) ? sanitize_text_field($_GET['page']) : '';
   if (strpos($page, 'vms-admin') !== 0) return;
 
+  if ($page === 'vms-admin') {
+    wp_enqueue_media();
+    wp_enqueue_script('vms-admin-settings', VMS_ADMIN_URL.'assets/js/settings.js', ['jquery'], VMS_ADMIN_VERSION, true);
+  }
+
   wp_enqueue_style('vms-admin-css', VMS_ADMIN_URL.'assets/css/admin.css', [], VMS_ADMIN_VERSION);
   wp_enqueue_script('vms-admin-js', VMS_ADMIN_URL.'assets/js/admin.js', ['jquery'], VMS_ADMIN_VERSION, true);
 
@@ -28,6 +33,21 @@ public static function enqueue( $hook ){
     'ajax'  => admin_url('admin-ajax.php'),
     'nonce' => wp_create_nonce('vms_admin_nonce'),
     'base'  => admin_url('admin.php'),
+    'assets' => VMS_ADMIN_URL,
+    'pdf' => [
+      'logo' => esc_url(get_option(Settings::OPT_PDF_LOGO, '')),
+      'qr' => esc_url(get_option(Settings::OPT_PDF_QR, '')),
+      'name' => sanitize_text_field(get_option(Settings::OPT_PDF_NAME, '')),
+      'lc_title' => sanitize_text_field(get_option(Settings::OPT_PDF_LC_TITLE, '')),
+      'lc_text' => wp_kses_post(get_option(Settings::OPT_PDF_LC_TEXT, '')),
+      'cc_title' => sanitize_text_field(get_option(Settings::OPT_PDF_CC_TITLE, '')),
+      'cc_text' => wp_kses_post(get_option(Settings::OPT_PDF_CC_TEXT, '')),
+      'rc_title' => sanitize_text_field(get_option(Settings::OPT_PDF_RC_TITLE, '')),
+      'rc_text' => wp_kses_post(get_option(Settings::OPT_PDF_RC_TEXT, '')),
+      'help_title' => sanitize_text_field(get_option(Settings::OPT_PDF_HELP_TITLE, '')),
+      'help_text' => wp_kses_post(get_option(Settings::OPT_PDF_HELP_TEXT, '')),
+      'weekdays' => wp_kses_post(get_option(Settings::OPT_PDF_WEEKDAYS, '')),
+    ],
   ]);
 }
 

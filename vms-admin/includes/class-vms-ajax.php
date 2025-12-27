@@ -40,7 +40,11 @@ sanitize_text_field($_POST['date_to']) : '',
 ];
 $data = API::vouchers(array_filter($query, fn($v)=>$v!=='' && $v!==null));
 if (is_wp_error($data)) wp_send_json_error($data->get_error_data(), 400);
-wp_send_json_success($data);
+$list = is_array($data) && array_key_exists('data', $data) ? $data['data'] : $data;
+if (is_array($list)) {
+  $list = array_map([__CLASS__, 'augment_voucher_list_item'], $list);
+}
+wp_send_json_success($list);
 }
 public static function fetch_voucher_details(){
 self::check_nonce();
@@ -48,6 +52,7 @@ $code = isset($_POST['code']) ? sanitize_text_field($_POST['code']) : '';
 if (!$code) wp_send_json_error('missing code', 400);
 $data = API::voucherByCode($code);
 if (is_wp_error($data)) wp_send_json_error($data->get_error_data(), 400);
+$data = self::augment_with_wc_order($data);
 wp_send_json_success($data);
 }
 public static function redeem_voucher(){
@@ -68,5 +73,90 @@ if (!$code) wp_send_json_error('missing code', 400);
 $data = API::void($code, $notes);
 if (is_wp_error($data)) wp_send_json_error($data->get_error_data(), 400);
 wp_send_json_success($data);
+}
+
+protected static function augment_with_wc_order($data){
+  if (!is_array($data) || !class_exists('WooCommerce') || !function_exists('wc_get_order')) return $data;
+  $external = '';
+  if (!empty($data['order']['external_id'])) $external = (string) $data['order']['external_id'];
+  if (!$external && !empty($data['order_external_id'])) $external = (string) $data['order_external_id'];
+  $order_id = 0;
+  if ($external && strpos($external, ':') !== false) {
+    $parts = explode(':', $external);
+    $order_id = absint(end($parts));
+  }
+  if (!$order_id && !empty($data['order']['order_id']) && is_numeric($data['order']['order_id'])) {
+    $order_id = absint($data['order']['order_id']);
+  }
+  if (!$order_id && !empty($data['order_id']) && is_numeric($data['order_id'])) {
+    $order_id = absint($data['order_id']);
+  }
+  if (!$order_id) return $data;
+  $order = wc_get_order($order_id);
+  if (!$order) return $data;
+
+  $first = null;
+  foreach ($order->get_items() as $item) { $first = $item; break; }
+  $product = $first ? $first->get_product() : null;
+  $qty = $first ? max(1, (int) $first->get_quantity()) : 1;
+  $unit = $first ? ((float) $first->get_subtotal() / $qty) : 0;
+  $img_id = $product ? $product->get_image_id() : 0;
+  $img_url = $img_id ? wp_get_attachment_image_url($img_id, 'medium') : '';
+  $desc = $product ? ($product->get_short_description() ?: $product->get_description()) : '';
+  $data['wp'] = [
+    'order_id' => $order->get_id(),
+    'order_number' => $order->get_order_number(),
+    'customer_name' => trim($order->get_billing_first_name().' '.$order->get_billing_last_name()),
+    'customer_email' => $order->get_billing_email(),
+    'product_name' => $product ? $product->get_name() : ($first ? $first->get_name() : ''),
+    'product_sku' => $product ? $product->get_sku() : '',
+    'product_description' => wp_strip_all_tags($desc),
+    'product_image' => $img_url,
+    'product_price' => number_format($unit, 2, '.', ''),
+  ];
+  return $data;
+}
+
+protected static function augment_voucher_list_item($item){
+  if (!is_array($item) || !class_exists('WooCommerce') || !function_exists('wc_get_order')) return $item;
+  $external = '';
+  if (!empty($item['order_external_id'])) $external = (string) $item['order_external_id'];
+  if (!$external && !empty($item['order']['external_id'])) $external = (string) $item['order']['external_id'];
+  $order_id = 0;
+  if ($external && strpos($external, ':') !== false) {
+    $parts = explode(':', $external);
+    $order_id = absint(end($parts));
+  }
+  if (!$order_id && !empty($item['order_number']) && is_numeric($item['order_number'])) {
+    $order_id = absint($item['order_number']);
+  }
+  if (!$order_id && !empty($item['order_id']) && is_numeric($item['order_id'])) {
+    $order_id = absint($item['order_id']);
+  }
+  if (!$order_id) return $item;
+  $order = wc_get_order($order_id);
+  if (!$order) return $item;
+
+  $first = null;
+  foreach ($order->get_items() as $i) { $first = $i; break; }
+  $product = $first ? $first->get_product() : null;
+  $qty = $first ? max(1, (int) $first->get_quantity()) : 1;
+  $unit = $first ? ((float) $first->get_subtotal() / $qty) : 0;
+  $sum = 0.0;
+  foreach ($order->get_items() as $it) {
+    $sum += (float) $it->get_subtotal();
+  }
+  $customer_id = $order->get_customer_id();
+  $item['wp'] = [
+    'customer_name' => trim($order->get_billing_first_name().' '.$order->get_billing_last_name()),
+    'customer_email' => $order->get_billing_email(),
+    'customer_id' => $customer_id,
+    'customer_link' => $customer_id ? admin_url('user-edit.php?user_id='.$customer_id) : '',
+    'product_name' => $product ? $product->get_name() : ($first ? $first->get_name() : ''),
+    'product_sku' => $product ? $product->get_sku() : '',
+    'product_price' => number_format($unit, 2, '.', ''),
+    'grand_total' => number_format($sum, 2, '.', ''),
+  ];
+  return $item;
 }
 }

@@ -7,3 +7,45 @@
 .vms-modal__close { float:right; font-size: 20px; }
 .vms-codes { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 16px; }
 .column-actions { width: 210px; }
+.vms-settings-panel .form-table { margin-top: 10px; }
+.vms-media-preview { margin-top: 8px; }
+.vms-media-preview img { max-width: 180px; height: auto; border: 1px solid #ccd0d4; padding: 4px; background: #fff; }
+.vms-metabox { border: 1px solid #ccd0d4; background: #fff; margin: 16px 0; }
+.vms-metabox__title { padding: 10px 12px; border-bottom: 1px solid #ccd0d4; background: #f6f7f7; font-weight: 600; }
+.vms-metabox__body { padding: 12px; }
+.vms-voucher-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
+.vms-voucher-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 12px; }
+.vms-voucher-title { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+.vms-voucher-order { color: #2271b1; }
+.vms-voucher-status { padding: 8px 18px; border-radius: 2px; font-weight: 700; text-transform: uppercase; }
+.vms-status-active { background: #7bc67b; color: #fff; }
+.vms-status-used { background: #6b7280; color: #fff; }
+.vms-status-canceled { background: #e34b4b; color: #fff; }
+.vms-field { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 10px 12px; background: #f6f6f6; margin-bottom: 8px; }
+.vms-field-nobg { background: transparent; padding-left: 0; padding-right: 0; }
+.vms-field label { font-weight: 600; min-width: 160px; }
+.vms-field-value { text-align: right; color: #1d2327; }
+.vms-field span { font-weight: 600; }
+.vms-field span + span { font-weight: 400; }
+.vms-code-block { align-items: flex-start; }
+.vms-barcode-wrap { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-height: 220px; }
+.vms-code-text { font-weight: 600; letter-spacing: 1px; }
+.vms-barcode-wrap svg { width: 140px; height: 220px; transform: rotate(-90deg); transform-origin: center; }
+.vms-qr-wrap { padding: 8px; background: #fff; border: 1px solid #ccd0d4; display: inline-block; }
+.vms-action-log { margin: 0; padding-left: 18px; }
+.vms-product-table td { vertical-align: top; }
+.vms-product-name { margin-bottom: 6px; }
+.vms-product-sku { color: #50575e; margin-bottom: 6px; }
+.vms-product-desc { color: #50575e; margin-bottom: 6px; }
+.vms-product-addons { color: #50575e; }
+.vms-product-image { width: 90px; height: auto; float: left; margin: 0 12px 8px 0; border-radius: 4px; }
+.vms-product-price { text-align: right; font-weight: 600; }
+.vms-actions-slot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+.vms-order-table tfoot td { background: #f6f7f7; font-weight: 600; }
+.vms-order-total td { text-align: right; }
+.vms-order-total td:last-child { text-align: right; }
+@media (max-width: 1020px) {
+  .vms-voucher-grid { grid-template-columns: 1fr; }
+  .vms-field { flex-direction: column; align-items: flex-start; }
+  .vms-field-value { text-align: left; }
+}

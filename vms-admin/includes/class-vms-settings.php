@@ -15,6 +15,18 @@ class Settings
     const OPT_API_PASSWORD = 'vms_api_password';   // NEW
     const OPT_CAT_ID = 'vms_voucher_category';
     const OPT_MULTIPLIER = 'vms_amount_multiplier';
+    const OPT_PDF_LOGO = 'vms_pdf_logo_url';
+    const OPT_PDF_NAME = 'vms_pdf_brand_name';
+    const OPT_PDF_LC_TITLE = 'vms_pdf_lc_title';
+    const OPT_PDF_LC_TEXT = 'vms_pdf_lc_text';
+    const OPT_PDF_CC_TITLE = 'vms_pdf_cc_title';
+    const OPT_PDF_CC_TEXT = 'vms_pdf_cc_text';
+    const OPT_PDF_RC_TITLE = 'vms_pdf_rc_title';
+    const OPT_PDF_RC_TEXT = 'vms_pdf_rc_text';
+    const OPT_PDF_QR = 'vms_pdf_qr_url';
+    const OPT_PDF_HELP_TITLE = 'vms_pdf_help_title';
+    const OPT_PDF_HELP_TEXT = 'vms_pdf_help_text';
+    const OPT_PDF_WEEKDAYS = 'vms_pdf_weekdays';
 
 
     public static function init()
@@ -33,6 +45,18 @@ class Settings
           'type'=>'string',
           'sanitize_callback'=> function($val){ $f = floatval($val); return number_format($f, 1, '.', ''); }
         ]);
+        register_setting('vms_admin', self::OPT_PDF_LOGO, ['type'=>'string','sanitize_callback'=>'esc_url_raw']);
+        register_setting('vms_admin', self::OPT_PDF_NAME, ['type'=>'string','sanitize_callback'=>'sanitize_text_field']);
+        register_setting('vms_admin', self::OPT_PDF_LC_TITLE, ['type'=>'string','sanitize_callback'=>'sanitize_text_field']);
+        register_setting('vms_admin', self::OPT_PDF_LC_TEXT, ['type'=>'string','sanitize_callback'=>'sanitize_textarea_field']);
+        register_setting('vms_admin', self::OPT_PDF_CC_TITLE, ['type'=>'string','sanitize_callback'=>'sanitize_text_field']);
+        register_setting('vms_admin', self::OPT_PDF_CC_TEXT, ['type'=>'string','sanitize_callback'=>'sanitize_textarea_field']);
+        register_setting('vms_admin', self::OPT_PDF_RC_TITLE, ['type'=>'string','sanitize_callback'=>'sanitize_text_field']);
+        register_setting('vms_admin', self::OPT_PDF_RC_TEXT, ['type'=>'string','sanitize_callback'=>'sanitize_textarea_field']);
+        register_setting('vms_admin', self::OPT_PDF_QR, ['type'=>'string','sanitize_callback'=>'esc_url_raw']);
+        register_setting('vms_admin', self::OPT_PDF_HELP_TITLE, ['type'=>'string','sanitize_callback'=>'sanitize_text_field']);
+        register_setting('vms_admin', self::OPT_PDF_HELP_TEXT, ['type'=>'string','sanitize_callback'=>'sanitize_textarea_field']);
+        register_setting('vms_admin', self::OPT_PDF_WEEKDAYS, ['type'=>'string','sanitize_callback'=>'sanitize_textarea_field']);
     
         add_settings_section('vms_admin_main', __('VMS Settings','vms-admin'), function(){
           echo '<p>'.esc_html__('Configure API and voucher behavior.','vms-admin').'</p>';
@@ -44,6 +68,22 @@ class Settings
         add_settings_field(self::OPT_API_TOKEN, __('API Token (optional PAT)','vms-admin'), [__CLASS__,'field_api_token'], 'vms_admin', 'vms_admin_main');    // optional fallback
         add_settings_field(self::OPT_CAT_ID, __('Voucher Category','vms-admin'), [__CLASS__,'field_cat'], 'vms_admin', 'vms_admin_main');
         add_settings_field(self::OPT_MULTIPLIER, __('Amount Multiplier','vms-admin'), [__CLASS__,'field_mult'], 'vms_admin', 'vms_admin_main');
+
+        add_settings_section('vms_admin_pdf', __('Voucher PDF Template','vms-admin'), function(){
+          echo '<p>'.esc_html__('Configure voucher PDF template fields.','vms-admin').'</p>';
+        }, 'vms_admin');
+        add_settings_field(self::OPT_PDF_LOGO, __('PDF Logo URL','vms-admin'), [__CLASS__,'field_pdf_logo'], 'vms_admin', 'vms_admin_pdf');
+        add_settings_field(self::OPT_PDF_NAME, __('PDF Brand Name','vms-admin'), [__CLASS__,'field_pdf_name'], 'vms_admin', 'vms_admin_pdf');
+        add_settings_field(self::OPT_PDF_LC_TITLE, __('Left Column Title','vms-admin'), [__CLASS__,'field_pdf_lc_title'], 'vms_admin', 'vms_admin_pdf');
+        add_settings_field(self::OPT_PDF_LC_TEXT, __('Left Column Text','vms-admin'), [__CLASS__,'field_pdf_lc_text'], 'vms_admin', 'vms_admin_pdf');
+        add_settings_field(self::OPT_PDF_CC_TITLE, __('Center Column Title','vms-admin'), [__CLASS__,'field_pdf_cc_title'], 'vms_admin', 'vms_admin_pdf');
+        add_settings_field(self::OPT_PDF_CC_TEXT, __('Center Column Text','vms-admin'), [__CLASS__,'field_pdf_cc_text'], 'vms_admin', 'vms_admin_pdf');
+        add_settings_field(self::OPT_PDF_RC_TITLE, __('Right Column Title','vms-admin'), [__CLASS__,'field_pdf_rc_title'], 'vms_admin', 'vms_admin_pdf');
+        add_settings_field(self::OPT_PDF_RC_TEXT, __('Right Column Text','vms-admin'), [__CLASS__,'field_pdf_rc_text'], 'vms_admin', 'vms_admin_pdf');
+        add_settings_field(self::OPT_PDF_QR, __('QR Code Image','vms-admin'), [__CLASS__,'field_pdf_qr'], 'vms_admin', 'vms_admin_pdf');
+        add_settings_field(self::OPT_PDF_HELP_TITLE, __('Help Title','vms-admin'), [__CLASS__,'field_pdf_help_title'], 'vms_admin', 'vms_admin_pdf');
+        add_settings_field(self::OPT_PDF_HELP_TEXT, __('Help Text','vms-admin'), [__CLASS__,'field_pdf_help_text'], 'vms_admin', 'vms_admin_pdf');
+        add_settings_field(self::OPT_PDF_WEEKDAYS, __('Weekdays Text','vms-admin'), [__CLASS__,'field_pdf_weekdays'], 'vms_admin', 'vms_admin_pdf');
       }
     
       public static function field_api_email(){
@@ -82,5 +122,85 @@ class Settings
     {
         $v = esc_attr(get_option(self::OPT_MULTIPLIER, '1.0'));
         echo '<input type="number" step="0.1" min="0.1" name="' . self::OPT_MULTIPLIER . '" value="' . $v . '" />';
+    }
+    public static function field_pdf_logo()
+    {
+        $v = esc_url(get_option(self::OPT_PDF_LOGO, ''));
+        echo '<input type="url" id="vms-pdf-logo" name="' . self::OPT_PDF_LOGO . '" value="' . esc_attr($v) . '" class="regular-text" placeholder="https://example.com/logo.png" />';
+        echo '<button type="button" class="button vms-media-upload" data-target="#vms-pdf-logo">Select</button>';
+        if ($v) echo '<div class="vms-media-preview"><img src="' . esc_url($v) . '" alt="" /></div>';
+    }
+    public static function field_pdf_name()
+    {
+        $v = esc_attr(get_option(self::OPT_PDF_NAME, ''));
+        echo '<input type="text" name="' . self::OPT_PDF_NAME . '" value="' . $v . '" class="regular-text" placeholder="Hair Bar NYC" />';
+    }
+    public static function field_pdf_lc_title()
+    {
+        $v = esc_attr(get_option(self::OPT_PDF_LC_TITLE, ''));
+        echo '<input type="text" name="' . self::OPT_PDF_LC_TITLE . '" value="' . $v . '" class="regular-text" />';
+    }
+    public static function field_pdf_lc_text()
+    {
+        $v = get_option(self::OPT_PDF_LC_TEXT, '');
+        wp_editor($v, 'vms_pdf_lc_text', [
+          'textarea_name' => self::OPT_PDF_LC_TEXT,
+          'textarea_rows' => 5,
+          'media_buttons' => false,
+        ]);
+    }
+    public static function field_pdf_cc_title()
+    {
+        $v = esc_attr(get_option(self::OPT_PDF_CC_TITLE, ''));
+        echo '<input type="text" name="' . self::OPT_PDF_CC_TITLE . '" value="' . $v . '" class="regular-text" />';
+    }
+    public static function field_pdf_cc_text()
+    {
+        $v = get_option(self::OPT_PDF_CC_TEXT, '');
+        wp_editor($v, 'vms_pdf_cc_text', [
+          'textarea_name' => self::OPT_PDF_CC_TEXT,
+          'textarea_rows' => 5,
+          'media_buttons' => false,
+        ]);
+    }
+    public static function field_pdf_rc_title()
+    {
+        $v = esc_attr(get_option(self::OPT_PDF_RC_TITLE, ''));
+        echo '<input type="text" name="' . self::OPT_PDF_RC_TITLE . '" value="' . $v . '" class="regular-text" />';
+    }
+    public static function field_pdf_rc_text()
+    {
+        $v = get_option(self::OPT_PDF_RC_TEXT, '');
+        wp_editor($v, 'vms_pdf_rc_text', [
+          'textarea_name' => self::OPT_PDF_RC_TEXT,
+          'textarea_rows' => 5,
+          'media_buttons' => false,
+        ]);
+    }
+    public static function field_pdf_qr()
+    {
+        $v = esc_url(get_option(self::OPT_PDF_QR, ''));
+        echo '<input type="url" id="vms-pdf-qr" name="' . self::OPT_PDF_QR . '" value="' . esc_attr($v) . '" class="regular-text" placeholder="https://example.com/qr.png" />';
+        echo '<button type="button" class="button vms-media-upload" data-target="#vms-pdf-qr">Select</button>';
+        if ($v) echo '<div class="vms-media-preview"><img src="' . esc_url($v) . '" alt="" /></div>';
+    }
+    public static function field_pdf_help_title()
+    {
+        $v = esc_attr(get_option(self::OPT_PDF_HELP_TITLE, ''));
+        echo '<input type="text" name="' . self::OPT_PDF_HELP_TITLE . '" value="' . $v . '" class="regular-text" />';
+    }
+    public static function field_pdf_help_text()
+    {
+        $v = get_option(self::OPT_PDF_HELP_TEXT, '');
+        wp_editor($v, 'vms_pdf_help_text', [
+          'textarea_name' => self::OPT_PDF_HELP_TEXT,
+          'textarea_rows' => 5,
+          'media_buttons' => false,
+        ]);
+    }
+    public static function field_pdf_weekdays()
+    {
+        $v = esc_attr(get_option(self::OPT_PDF_WEEKDAYS, ''));
+        echo '<input type="text" name="' . self::OPT_PDF_WEEKDAYS . '" value="' . $v . '" class="regular-text" />';
     }
 }
