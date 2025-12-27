@@ -90,6 +90,17 @@ export const createVoucherRecord = async (payload, req = null) => {
     if (existing) {
       return { voucherId: existing.id, code: existing.code, existing: true }
     }
+    const now = new Date()
+    const defaultExpiry = new Date(
+      now.getFullYear() + 1,
+      now.getMonth(),
+      now.getDate(),
+      now.getHours(),
+      now.getMinutes(),
+      now.getSeconds(),
+      now.getMilliseconds()
+    )
+    const expiresAt = payload.expires_at ? new Date(payload.expires_at) : defaultExpiry
     const code = (payload.code || '').trim() || genCode()
     const vid = await Vouchers.createVoucher(
       {
@@ -100,7 +111,7 @@ export const createVoucherRecord = async (payload, req = null) => {
         title: orderData.title,
         face_value: orderData.face_value,
         currency: orderData.currency,
-        expires_at: payload.expires_at || null,
+        expires_at: expiresAt,
       },
       conn
     )
