@@ -7,6 +7,7 @@ class API {
   // Option keys / transients
   const TX_JWT      = 'vms_api_jwt_token';
   const TX_JWT_EXP  = 'vms_api_jwt_exp'; // epoch seconds
+  const DEBUG_LOG   = 'debug.log';
 
   public static function base(){ return rtrim(get_option(Settings::OPT_API_URL, ''), '/'); }
   public static function tokenOption(){ return trim(get_option(Settings::OPT_API_TOKEN, '')); } // optional PAT
@@ -56,6 +57,7 @@ class API {
     if (!$email || !$pass) return new \WP_Error('vms_api_config', 'API credentials not configured');
 
     $url  = rtrim($base,'/').'/auth/login';
+    self::log_line('API login request', ['url' => $url, 'has_email' => !empty($email)]);
     $args = [
       'method'  => 'POST',
       'headers' => [ 'Accept'=>'application/json', 'Content-Type'=>'application/json' ],
@@ -63,10 +65,14 @@ class API {
       'body'    => wp_json_encode([ 'email'=>$email, 'password'=>$pass ]),
     ];
     $res  = wp_remote_request($url, $args);
-    if (is_wp_error($res)) return $res;
+    if (is_wp_error($res)) {
+      self::log_line('API login wp_error', ['message' => $res->get_error_message()]);
+      return $res;
+    }
 
     $code = wp_remote_retrieve_response_code($res);
     $json = json_decode(wp_remote_retrieve_body($res), true);
+    self::log_line('API login response', ['code' => $code]);
     if ($code >= 200 && $code < 300 && !empty($json['token'])) {
       self::set_cached_jwt($json['token']);
       return true;
@@ -111,15 +117,37 @@ class API {
     $args = [
       'method'  => strtoupper($method),
       'headers' => self::headers(),
-      'timeout' => 20,
+      'timeout' => 60,
     ];
     if ($body !== null) $args['body'] = is_string($body) ? $body : wp_json_encode($body);
 
+    self::log_line('API request', ['method' => strtoupper($method), 'url' => $url]);
+    if (strtoupper($method) === 'POST' && strpos($url, '/vouchers') !== false && !empty($args['body'])) {
+      self::log_line('API request body', ['body' => self::redact_payload($args['body'])]);
+    }
     $res  = wp_remote_request($url, $args);
-    if (is_wp_error($res)) return $res;
+    if (is_wp_error($res)) {
+      $msg = $res->get_error_message();
+      self::log_line('API request wp_error', ['message' => $msg]);
+      if (strpos($msg, 'cURL error 28') !== false) {
+        self::log_line('API request retry after timeout');
+        $res = wp_remote_request($url, $args);
+        if (!is_wp_error($res)) {
+          $code = wp_remote_retrieve_response_code($res);
+          $body = wp_remote_retrieve_body($res);
+          $json = json_decode($body, true);
+          self::log_line('API retry response', ['code' => $code]);
+          if ($code >= 200 && $code < 300) return $json;
+          self::log_line('API retry error body', ['code' => $code, 'body' => $body]);
+        }
+      }
+      return $res;
+    }
 
     $code = wp_remote_retrieve_response_code($res);
-    $json = json_decode(wp_remote_retrieve_body($res), true);
+    $body = wp_remote_retrieve_body($res);
+    $json = json_decode($body, true);
+    self::log_line('API response', ['code' => $code]);
 
     // If unauthorized, try to login once and retry (JWT mode only)
     if ($code === 401 && ! self::tokenOption() ) {
@@ -130,13 +158,52 @@ class API {
         $res  = wp_remote_request($url, $args);
         if (!is_wp_error($res)) {
           $code = wp_remote_retrieve_response_code($res);
-          $json = json_decode(wp_remote_retrieve_body($res), true);
+          $body = wp_remote_retrieve_body($res);
+          $json = json_decode($body, true);
+          self::log_line('API retry response', ['code' => $code]);
+          if ($code >= 200 && $code < 300) return $json;
+          self::log_line('API retry error body', ['code' => $code, 'body' => $body]);
         }
       }
     }
 
     if ($code >= 200 && $code < 300) return $json;
+    self::log_line('API error body', ['code' => $code, 'body' => $body]);
     return new \WP_Error('vms_api_error', 'API error', ['code'=>$code,'body'=>$json]);
+  }
+
+  protected static function log_line($message, $context = []){
+    if (empty($message)) return;
+    $line = '[' . gmdate('Y-m-d H:i:s') . '] ' . $message;
+    if (!empty($context)) $line .= ' ' . wp_json_encode($context);
+    $line .= "\n";
+    $path = defined('VMS_ADMIN_PATH') ? VMS_ADMIN_PATH . self::DEBUG_LOG : '';
+    if (!$path) return;
+    @file_put_contents($path, $line, FILE_APPEND | LOCK_EX);
+  }
+
+  protected static function redact_payload($body){
+    if (is_string($body)) {
+      $decoded = json_decode($body, true);
+      if (json_last_error() === JSON_ERROR_NONE) $body = $decoded;
+    }
+    if (!is_array($body)) return $body;
+    return self::redact_array($body);
+  }
+
+  protected static function redact_array($data){
+    if (!is_array($data)) return $data;
+    foreach ($data as $key => $value) {
+      if (is_array($value)) {
+        $data[$key] = self::redact_array($value);
+        continue;
+      }
+      $k = is_string($key) ? strtolower($key) : $key;
+      if ($k === 'email' || $k === 'phone' || $k === 'password' || $k === 'token') {
+        $data[$key] = '[redacted]';
+      }
+    }
+    return $data;
   }
 
   // === Convenience wrappers (unchanged) ===

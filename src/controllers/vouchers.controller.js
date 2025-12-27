@@ -70,7 +70,6 @@ const normalizeOrderPayload = (body = {}) => {
 export const createVoucherRecord = async (payload, req = null) => {
   const conn = await pool.getConnection()
   try {
-    await conn.beginTransaction()
     const customer_id = await ensureCustomer(conn, payload.customer)
     const orderData = normalizeOrderPayload(payload)
     const order_id = await Orders.upsertOrder(
@@ -87,6 +86,10 @@ export const createVoucherRecord = async (payload, req = null) => {
       conn
     )
     await Orders.replaceOrderProducts(order_id, orderData.products, conn)
+    const existing = await Vouchers.getByOrderId(order_id, conn)
+    if (existing) {
+      return { voucherId: existing.id, code: existing.code, existing: true }
+    }
     const code = (payload.code || '').trim() || genCode()
     const vid = await Vouchers.createVoucher(
       {
@@ -101,7 +104,6 @@ export const createVoucherRecord = async (payload, req = null) => {
       },
       conn
     )
-    await conn.commit()
     if (req) {
       await logAction(req, {
         action: 'VOUCHER_CREATE',
@@ -112,7 +114,6 @@ export const createVoucherRecord = async (payload, req = null) => {
     }
     return { voucherId: vid, code }
   } catch (err) {
-    await conn.rollback()
     throw err
   } finally {
     conn.release()

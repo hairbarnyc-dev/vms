@@ -23,6 +23,18 @@ export const getByCode = async (code) => {
   )
   return rows[0]
 }
+export const getByOrderId = async (order_id, conn = null) => {
+  if (!order_id) return null
+  const db = conn || pool
+  const [rows] = await db.query(
+    `SELECT v.id, v.code
+     FROM vouchers v
+     WHERE v.order_id=? AND v.is_deleted=0
+     LIMIT 1`,
+    [order_id]
+  )
+  return rows[0]
+}
 export const getById = async (id) => {
   const [rows] = await pool.query(
     `SELECT v.*, s.name AS salon_name

@@ -72,7 +72,7 @@ class Settings
         $sel = (int) get_option(self::OPT_CAT_ID, 0);
         wp_dropdown_categories([
             'show_option_none' => __('— Select —', 'vms-admin'),
-            'taxonomy' => 'category',
+            'taxonomy' => 'product_cat',
             'name' => self::OPT_CAT_ID,
             'selected' => $sel,
             'hide_empty' => false
