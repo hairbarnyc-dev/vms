@@ -122,7 +122,7 @@ r.get('/create', requireAuthWeb([1,2]), async (req, res, next) => {
 
 r.post('/create', requireAuthWeb([1,2]), async (req, res, next) => {
   try {
-    const code = req.body.code?.trim() || crypto.randomBytes(6).toString('base64url').toUpperCase()
+    const code = req.body.code?.trim() || crypto.randomBytes(6).toString('hex').toUpperCase()
     const orderForm = orderPayloadFromForm(req.body)
     const resolvedOrderTotal = Number(orderForm.order_total ?? req.body.face_value ?? 0) || 0
     const resolvedFaceValue = Number(req.body.face_value || resolvedOrderTotal || 0) || 0

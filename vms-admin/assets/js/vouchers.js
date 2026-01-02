@@ -27,12 +27,18 @@
   }
   function renderRows(items) {
     if (!Array.isArray(items) || !items.length)
-      return '<tr><td colspan="9"><em>No vouchers found.</em></td></tr>';
+      return '<tr><td colspan="11"><em>No vouchers found.</em></td></tr>';
     return items
       .map((v) => {
         const wp = v.wp || {};
+        const orderNumber =
+          wp.order_number || v.order_number || v.order_external_id || v.order_id || "-";
+        const orderLink = wp.order_id
+          ? `${VMSAdmin.base}?post=${encodeURIComponent(wp.order_id)}&action=edit`
+          : "";
         const serviceName = wp.product_name || v.title || "-";
-        const grandTotal = wp.grand_total || v.face_value || "0.00";
+        const voucherValue = wp.product_price || v.face_value || "0.00";
+        const grandTotal = wp.grand_total || v.order_total || v.face_value || "0.00";
         const customerName = wp.customer_name || v.customer_name || "-";
         const customerEmail = wp.customer_email || v.customer_email || "";
         const customerLink = wp.customer_link || "";
@@ -56,7 +62,9 @@
  `;
         return `<tr>
           <td><a href="${VMSAdmin.base}?page=vms-admin-voucher-details&code=${encodeURIComponent(v.code)}">${v.code}</a></td>
+          <td>${orderLink ? `<a href="${orderLink}">${orderNumber}</a>` : orderNumber}</td>
           <td>${serviceName}</td>
+          <td>${voucherValue}</td>
           <td>${grandTotal}</td>
           <td>${customerLink ? `<a href="${customerLink}">${customerName}</a>` : customerName}${
             customerEmail ? `<br><a href="mailto:${customerEmail}">${customerEmail}</a>` : ""

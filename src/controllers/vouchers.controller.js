@@ -5,7 +5,7 @@ import { pool } from '../config/db.js'
 import { redeem as redeemModel } from '../models/redemptionsModel.js'
 import { logAction } from '../utils/audit.js'
 
-const genCode = () => crypto.randomBytes(6).toString('base64url').toUpperCase() // ~8 chars
+const genCode = () => crypto.randomBytes(6).toString('hex').toUpperCase() // 12 chars, A-F/0-9 only
 
 const normalizeProducts = (list) => {
   if (!list) return []

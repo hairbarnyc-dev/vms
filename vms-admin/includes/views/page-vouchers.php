@@ -26,7 +26,9 @@
 <table class="widefat fixed striped" id="vms-vouchers-table">
 <thead><tr>
 <th>Voucher code</th>
+<th>Order #</th>
 <th>Service name</th>
+<th>Voucher value</th>
 <th>Grand total</th>
 <th>Customer</th>
 <th>Voucher date</th>
@@ -35,7 +37,7 @@
 <th>Redeemed at/on</th>
 <th class="column-actions">Actions</th>
 </tr></thead>
-<tbody><tr><td colspan="9"><em>Use filters to load vouchers…</em></td></tr></tbody>
+<tbody><tr><td colspan="11"><em>Use filters to load vouchers…</em></td></tr></tbody>
 </table>
 </div>
 

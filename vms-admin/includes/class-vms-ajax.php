@@ -33,7 +33,7 @@ $query = [
 'pageSize' => isset($_POST['pageSize']) ? absint($_POST['pageSize']) : '',
 'status' => isset($_POST['status']) ?
 sanitize_text_field($_POST['status']) : '',
-'salon_id' => isset($_POST['salon_id']) ? absint($_POST['salon_id']) : '',
+'salon_id' => (isset($_POST['salon_id']) && $_POST['salon_id'] !== '') ? absint($_POST['salon_id']) : '',
 'q' => isset($_POST['q']) ? sanitize_text_field($_POST['q']) : '',
 'date_from' => isset($_POST['date_from']) ?
 sanitize_text_field($_POST['date_from']) : '',
@@ -105,6 +105,21 @@ protected static function augment_with_wc_order($data){
   $img_id = $product ? $product->get_image_id() : 0;
   $img_url = $img_id ? wp_get_attachment_image_url($img_id, 'medium') : '';
   $desc = $product ? ($product->get_short_description() ?: $product->get_description()) : '';
+  $products = [];
+  foreach ($order->get_items() as $item) {
+    $qty = max(1, (int) $item->get_quantity());
+    $p = $item->get_product();
+    $unit = $qty ? ((float) $item->get_total() / $qty) : 0;
+    $products[] = [
+      'product_id' => $p ? $p->get_sku() : '',
+      'product_name' => $p ? $p->get_name() : $item->get_name(),
+      'product_price' => number_format($unit, 2, '.', ''),
+      'quantity' => $qty,
+    ];
+  }
+  if (!isset($data['order']) || !is_array($data['order'])) $data['order'] = [];
+  $data['order']['products'] = $products;
+  if (empty($data['order']['order_total'])) $data['order']['order_total'] = (string) $order->get_total();
   $data['wp'] = [
     'order_id' => $order->get_id(),
     'order_number' => $order->get_order_number(),
@@ -150,6 +165,8 @@ protected static function augment_voucher_list_item($item){
   }
   $customer_id = $order->get_customer_id();
   $item['wp'] = [
+    'order_id' => $order->get_id(),
+    'order_number' => $order->get_order_number(),
     'customer_name' => trim($order->get_billing_first_name().' '.$order->get_billing_last_name()),
     'customer_email' => $order->get_billing_email(),
     'customer_id' => $customer_id,

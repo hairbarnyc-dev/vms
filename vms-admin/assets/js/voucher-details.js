@@ -131,16 +131,19 @@
       `
       const productRows = products.length
         ? products
-            .map(
-              (p) => `<tr>
+            .map((p) => {
+              const qty = Number(p.quantity || 1);
+              const unit = Number(p.product_price || 0);
+              const total = unit * qty;
+              return `<tr>
                 <td>${p.product_name || ""}</td>
                 <td>${p.product_id || "-"}</td>
-                <td>1</td>
-                <td>${Number(p.product_price || 0).toFixed(2)}</td>
+                <td>${qty}</td>
+                <td>${unit.toFixed(2)}</td>
                 <td>Any selected add-ons</td>
-                <td>${Number(p.product_price || 0).toFixed(2)}</td>
-              </tr>`
-            )
+                <td>${total.toFixed(2)}</td>
+              </tr>`;
+            })
             .join("")
         : `<tr><td colspan="6"><em>No products recorded.</em></td></tr>`
       orderHtml = `
