@@ -24,6 +24,7 @@ class Settings
     const OPT_PDF_RC_TITLE = 'vms_pdf_rc_title';
     const OPT_PDF_RC_TEXT = 'vms_pdf_rc_text';
     const OPT_PDF_QR = 'vms_pdf_qr_url';
+    const OPT_PDF_BARCODE = 'vms_pdf_barcode_url';
     const OPT_PDF_HELP_TITLE = 'vms_pdf_help_title';
     const OPT_PDF_HELP_TEXT = 'vms_pdf_help_text';
     const OPT_PDF_WEEKDAYS = 'vms_pdf_weekdays';
@@ -54,6 +55,7 @@ class Settings
         register_setting('vms_admin', self::OPT_PDF_RC_TITLE, ['type'=>'string','sanitize_callback'=>'sanitize_text_field']);
         register_setting('vms_admin', self::OPT_PDF_RC_TEXT, ['type'=>'string','sanitize_callback'=>'sanitize_textarea_field']);
         register_setting('vms_admin', self::OPT_PDF_QR, ['type'=>'string','sanitize_callback'=>'esc_url_raw']);
+        register_setting('vms_admin', self::OPT_PDF_BARCODE, ['type'=>'string','sanitize_callback'=>'esc_url_raw']);
         register_setting('vms_admin', self::OPT_PDF_HELP_TITLE, ['type'=>'string','sanitize_callback'=>'sanitize_text_field']);
         register_setting('vms_admin', self::OPT_PDF_HELP_TEXT, ['type'=>'string','sanitize_callback'=>'sanitize_textarea_field']);
         register_setting('vms_admin', self::OPT_PDF_WEEKDAYS, ['type'=>'string','sanitize_callback'=>'sanitize_textarea_field']);
@@ -81,6 +83,7 @@ class Settings
         add_settings_field(self::OPT_PDF_RC_TITLE, __('Right Column Title','vms-admin'), [__CLASS__,'field_pdf_rc_title'], 'vms_admin', 'vms_admin_pdf');
         add_settings_field(self::OPT_PDF_RC_TEXT, __('Right Column Text','vms-admin'), [__CLASS__,'field_pdf_rc_text'], 'vms_admin', 'vms_admin_pdf');
         add_settings_field(self::OPT_PDF_QR, __('QR Code Image','vms-admin'), [__CLASS__,'field_pdf_qr'], 'vms_admin', 'vms_admin_pdf');
+        add_settings_field(self::OPT_PDF_BARCODE, __('Barcode Image','vms-admin'), [__CLASS__,'field_pdf_barcode'], 'vms_admin', 'vms_admin_pdf');
         add_settings_field(self::OPT_PDF_HELP_TITLE, __('Help Title','vms-admin'), [__CLASS__,'field_pdf_help_title'], 'vms_admin', 'vms_admin_pdf');
         add_settings_field(self::OPT_PDF_HELP_TEXT, __('Help Text','vms-admin'), [__CLASS__,'field_pdf_help_text'], 'vms_admin', 'vms_admin_pdf');
         add_settings_field(self::OPT_PDF_WEEKDAYS, __('Weekdays Text','vms-admin'), [__CLASS__,'field_pdf_weekdays'], 'vms_admin', 'vms_admin_pdf');
@@ -182,6 +185,13 @@ class Settings
         $v = esc_url(get_option(self::OPT_PDF_QR, ''));
         echo '<input type="url" id="vms-pdf-qr" name="' . self::OPT_PDF_QR . '" value="' . esc_attr($v) . '" class="regular-text" placeholder="https://example.com/qr.png" />';
         echo '<button type="button" class="button vms-media-upload" data-target="#vms-pdf-qr">Select</button>';
+        if ($v) echo '<div class="vms-media-preview"><img src="' . esc_url($v) . '" alt="" /></div>';
+    }
+    public static function field_pdf_barcode()
+    {
+        $v = esc_url(get_option(self::OPT_PDF_BARCODE, ''));
+        echo '<input type="url" id="vms-pdf-barcode" name="' . self::OPT_PDF_BARCODE . '" value="' . esc_attr($v) . '" class="regular-text" placeholder="https://example.com/barcode.png" />';
+        echo '<button type="button" class="button vms-media-upload" data-target="#vms-pdf-barcode">Select</button>';
         if ($v) echo '<div class="vms-media-preview"><img src="' . esc_url($v) . '" alt="" /></div>';
     }
     public static function field_pdf_help_title()

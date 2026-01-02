@@ -37,6 +37,7 @@ public static function enqueue( $hook ){
     'pdf' => [
       'logo' => esc_url(get_option(Settings::OPT_PDF_LOGO, '')),
       'qr' => esc_url(get_option(Settings::OPT_PDF_QR, '')),
+      'barcode' => esc_url(get_option(Settings::OPT_PDF_BARCODE, '')),
       'name' => sanitize_text_field(get_option(Settings::OPT_PDF_NAME, '')),
       'lc_title' => sanitize_text_field(get_option(Settings::OPT_PDF_LC_TITLE, '')),
       'lc_text' => wp_kses_post(get_option(Settings::OPT_PDF_LC_TEXT, '')),

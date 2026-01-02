@@ -33,6 +33,7 @@
         <tr>
           <th>Code</th>
           <th>Title</th>
+          <th>Amount</th>
           <% if (!isSalonUser || activeTab!=='available') { %>
             <th>Salon</th>
           <% } %>
@@ -54,6 +55,7 @@
           <tr>
             <td><code><%= r.code %></code></td>
             <td><%= r.title %></td>
+            <td><%= r.face_value %> <%= r.currency %></td>
             <% if (!isSalonUser || activeTab!=='available') { %>
               <td><%= (r.salon_name || r.voucher_salon_name || '-') %></td>
             <% } %>
@@ -86,7 +88,7 @@
         <% }) %>
         <% if (!rows.length) { %>
           <tr>
-            <td colspan="<%= (!isSalonUser || activeTab!=='available') ? 5 : 6 %>" class="text-center text-muted">
+            <td colspan="<%= (!isSalonUser || activeTab!=='available') ? 6 : 7 %>" class="text-center text-muted">
               No vouchers to show.
             </td>
           </tr>

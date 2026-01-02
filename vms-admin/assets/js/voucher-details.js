@@ -68,10 +68,10 @@
               <label>Barcode:</label>
               <div class="vms-field-value vms-barcode-wrap">
                 <svg id="vms-barcode"></svg>
-                <div class="vms-code-text">${v.code || ""}</div>
+                <div class="vms-code-text" style="display: none;">${v.code || ""}</div>
               </div>
             </div>
-            <div class="vms-field vms-field-nobg vms-code-block">
+            <div class="vms-field vms-field-nobg vms-code-block" style="display:none;">
               <label>QR Code:</label>
               <div class="vms-field-value vms-qr-wrap">
                 <div id="vms-qr"></div>
@@ -174,18 +174,29 @@
     }
     // QR & Barcode
     try {
-      new QRCode(document.getElementById("vms-qr"), {
-        text: v.code,
-        width: 128,
-        height: 128,
-      });
+      const qrTarget = document.getElementById("vms-qr");
+      if (qrTarget) {
+        const qrUrl = (VMSAdmin.pdf && VMSAdmin.pdf.qr) || "";
+        if (qrUrl) {
+          const img = document.createElement("img");
+          img.src = qrUrl;
+          img.alt = "QR";
+          qrTarget.appendChild(img);
+        } else {
+          new QRCode(qrTarget, {
+            text: v.code,
+            width: 128,
+            height: 128,
+          });
+        }
+      }
     } catch (e) {}
     try {
       JsBarcode("#vms-barcode", v.code, {
         format: "CODE128",
-        width: 2,
-        height: 48,
-        displayValue: false,
+        width: 3,
+        height: 80,
+        displayValue: true,
       });
     } catch (e) {}
   }
@@ -295,7 +306,7 @@ label>`,
       ADDONS: "No add-ons selected",
       customer_name: wp.customer_name || "",
       customer_email: wp.customer_email || "",
-      expiry_date: v.expires_at || "",
+      expiry_date: v.expires_at ? new Date(v.expires_at).toISOString().slice(0, 10) : "",
       product_price: wp.product_price ? `$${wp.product_price}` : "",
       product_image: wp.product_image || "",
       barcode: barcodeData,

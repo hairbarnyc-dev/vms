@@ -77,6 +77,10 @@
             </td>
             <td><%= new Date(r.created_at).toLocaleString() %></td>
             <td class="text-nowrap">
+              <button class="btn btn-sm btn-success js-open-redeem"
+                      data-code="<%= r.code %>" data-title="<%= r.title %>">
+                <i class="fa-solid fa-check"></i>
+              </button>
               <a class="btn btn-sm btn-outline-primary" href="/vouchers/<%= r.id %>/edit"><i class="fa-solid fa-pen"></i></a>
               <form method="post" action="/vouchers/<%= r.id %>/delete" style="display:inline" onsubmit="return confirm('Delete this voucher?')">
                 <button class="btn btn-sm btn-outline-danger"><i class="fa-solid fa-trash"></i></button>
@@ -91,4 +95,29 @@
     </table>
   </div>
 </div>
+<div class="modal fade" id="redeemModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" method="post" action="/vouchers/action/redeem">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa-solid fa-check"></i> Redeem Voucher</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label">Voucher Code</label>
+          <input name="code" class="form-control" id="redeemCode" readonly>
+        </div>
+        <div class="mb-0">
+          <label class="form-label">Notes (optional)</label>
+          <textarea name="notes" class="form-control" rows="2" placeholder="Add any notes..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-success"><i class="fa-solid fa-check"></i> Confirm Redeem</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script src="/vendor/bootstrap/bootstrap.bundle.min.js" defer></script>
+<script src="/js/vouchers.js" defer></script>
 <%- include('../partials/foot') %>

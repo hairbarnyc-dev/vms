@@ -22,15 +22,16 @@
 .vms-status-used { background: #6b7280; color: #fff; }
 .vms-status-canceled { background: #e34b4b; color: #fff; }
 .vms-field { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 10px 12px; background: #f6f6f6; margin-bottom: 8px; }
-.vms-field-nobg { background: transparent; padding-left: 0; padding-right: 0; }
+.vms-field-nobg { background: transparent; }
 .vms-field label { font-weight: 600; min-width: 160px; }
 .vms-field-value { text-align: right; color: #1d2327; }
 .vms-field span { font-weight: 600; }
 .vms-field span + span { font-weight: 400; }
 .vms-code-block { align-items: flex-start; }
-.vms-barcode-wrap { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-height: 220px; }
+.vms-barcode-wrap { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .vms-code-text { font-weight: 600; letter-spacing: 1px; }
-.vms-barcode-wrap svg { width: 140px; height: 220px; transform: rotate(-90deg); transform-origin: center; }
+.vms-barcode-wrap svg { width: 250px; height: auto; transform: rotate(-90deg); transform-origin: center; }
+.vms-barcode-image { display: block; max-width: 100%; height: auto; }
 .vms-qr-wrap { padding: 8px; background: #fff; border: 1px solid #ccd0d4; display: inline-block; }
 .vms-action-log { margin: 0; padding-left: 18px; }
 .vms-product-table td { vertical-align: top; }

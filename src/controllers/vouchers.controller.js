@@ -86,10 +86,6 @@ export const createVoucherRecord = async (payload, req = null) => {
       conn
     )
     await Orders.replaceOrderProducts(order_id, orderData.products, conn)
-    const existing = await Vouchers.getByOrderId(order_id, conn)
-    if (existing) {
-      return { voucherId: existing.id, code: existing.code, existing: true }
-    }
     const now = new Date()
     const defaultExpiry = new Date(
       now.getFullYear() + 1,
@@ -142,8 +138,16 @@ export const create = async (req, res, next) => {
 
 export const list = async (req, res, next) => {
   try {
-    const { page, pageSize, q } = req.query
-    const rows = await Vouchers.list({ page: Number(page) || 1, pageSize: Number(pageSize) || 20, q })
+    const { page, pageSize, q, status, salon_id, date_from, date_to } = req.query
+    const rows = await Vouchers.list({
+      page: Number(page) || 1,
+      pageSize: Number(pageSize) || 20,
+      q: q || null,
+      status: status || null,
+      salon_id: salon_id || null,
+      date_from: date_from || null,
+      date_to: date_to || null
+    })
     res.json(rows)
   } catch (e) { next(e) }
 }

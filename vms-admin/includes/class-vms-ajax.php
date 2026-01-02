@@ -141,10 +141,10 @@ protected static function augment_voucher_list_item($item){
   foreach ($order->get_items() as $i) { $first = $i; break; }
   $product = $first ? $first->get_product() : null;
   $qty = $first ? max(1, (int) $first->get_quantity()) : 1;
-  $unit = $first ? ((float) $first->get_subtotal() / $qty) : 0;
+  $unit = $first ? ((float) $first->get_total() / $qty) : 0;
   $sum = 0.0;
   foreach ($order->get_items() as $it) {
-    $sum += (float) $it->get_subtotal();
+    $sum += (float) $it->get_total();
   }
   $customer_id = $order->get_customer_id();
   $item['wp'] = [
