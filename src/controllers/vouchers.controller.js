@@ -202,9 +202,11 @@ export const redeem = async (req, res, next) => {
         notes
       })
     } else {
+      const selectedSalonId = Number(req.body.salon_id || v.salon_id || 0) || null
+      if (!selectedSalonId) return res.status(400).json({ error: 'Missing salon' })
       await redeemModel({
         voucher_id: v.id,
-        salon_id: v.salon_id || null,
+        salon_id: selectedSalonId,
         staff_user_id: req.user.id,
         notes
       })

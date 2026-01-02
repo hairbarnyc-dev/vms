@@ -78,7 +78,7 @@
             <td><%= new Date(r.created_at).toLocaleString() %></td>
             <td class="text-nowrap">
               <button class="btn btn-sm btn-success js-open-redeem"
-                      data-code="<%= r.code %>" data-title="<%= r.title %>">
+                      data-code="<%= r.code %>" data-title="<%= r.title %>" data-salon-id="<%= r.salon_id || '' %>">
                 <i class="fa-solid fa-check"></i>
               </button>
               <a class="btn btn-sm btn-outline-primary" href="/vouchers/<%= r.id %>/edit"><i class="fa-solid fa-pen"></i></a>
@@ -106,6 +106,15 @@
         <div class="mb-2">
           <label class="form-label">Voucher Code</label>
           <input name="code" class="form-control" id="redeemCode" readonly>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Salon</label>
+          <select name="salon_id" class="form-select" id="redeemSalon" required>
+            <option value="">Select salon</option>
+            <% salons.forEach(s => { %>
+              <option value="<%= s.id %>"><%= s.name %></option>
+            <% }) %>
+          </select>
         </div>
         <div class="mb-0">
           <label class="form-label">Notes (optional)</label>

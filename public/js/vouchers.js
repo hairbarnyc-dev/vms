@@ -10,6 +10,10 @@ document.addEventListener('DOMContentLoaded', function () {
     btn.addEventListener('click', () => {
       const code = btn.getAttribute('data-code')
       document.getElementById('redeemCode').value = code
+      const salonSelect = document.getElementById('redeemSalon')
+      if (salonSelect) {
+        salonSelect.value = btn.getAttribute('data-salon-id') || ''
+      }
       redeemModal && redeemModal.show()
     })
   })
