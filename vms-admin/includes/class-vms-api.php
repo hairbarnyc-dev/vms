@@ -113,6 +113,7 @@ class API {
     $ok = self::ensure_token();
     if (is_wp_error($ok)) return $ok;
 
+    $path = self::normalize_path($path);
     $url = rtrim($base,'/').'/'.ltrim($path,'/');
     $args = [
       'method'  => strtoupper($method),
@@ -204,6 +205,16 @@ class API {
       }
     }
     return $data;
+  }
+
+  protected static function normalize_path($path){
+    $path = ltrim((string) $path, '/');
+    $base = self::base();
+    if (empty($base)) return $path;
+    if (preg_match('#/api/v1/?$#', $base) || strpos($base, '/api/v1/') !== false) {
+      return $path;
+    }
+    return 'api/v1/'.$path;
   }
 
   // === Convenience wrappers (unchanged) ===

@@ -29,6 +29,8 @@ public static function fetch_salons(){
 public static function fetch_vouchers(){
 self::check_nonce();
 $query = [
+'page' => isset($_POST['page']) ? absint($_POST['page']) : '',
+'pageSize' => isset($_POST['pageSize']) ? absint($_POST['pageSize']) : '',
 'status' => isset($_POST['status']) ?
 sanitize_text_field($_POST['status']) : '',
 'salon_id' => isset($_POST['salon_id']) ? absint($_POST['salon_id']) : '',
