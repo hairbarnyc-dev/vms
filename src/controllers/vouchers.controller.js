@@ -1,11 +1,11 @@
-import crypto from 'crypto'
+import { generateVoucherCode } from '../utils/voucherCode.js'
 import * as Vouchers from '../models/vouchersModel.js'
 import * as Orders from '../models/ordersModel.js'
 import { pool } from '../config/db.js'
 import { redeem as redeemModel, getByVoucherId as getRedemptionByVoucherId, redeemLegacy as redeemLegacyModel } from '../models/redemptionsModel.js'
 import { logAction } from '../utils/audit.js'
 
-const genCode = () => crypto.randomBytes(6).toString('hex').toUpperCase() // 12 chars, A-F/0-9 only
+const genCode = () => generateVoucherCode()
 
 const normalizeProducts = (list) => {
   if (!list) return []
