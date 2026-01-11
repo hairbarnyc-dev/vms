@@ -4,6 +4,7 @@
 <h2 class="nav-tab-wrapper vms-settings-tabs">
   <a href="#" class="nav-tab nav-tab-active" data-tab="#vms-tab-plugin">Plugin settings</a>
   <a href="#" class="nav-tab" data-tab="#vms-tab-pdf">PDF settings</a>
+  <a href="#" class="nav-tab" data-tab="#vms-tab-sync">Sync vouchers</a>
 </h2>
 <form method="post" action="options.php">
 <?php settings_fields('vms_admin'); ?>
@@ -36,6 +37,30 @@
     }
   }
   ?>
+</div>
+<div id="vms-tab-sync" class="vms-settings-panel" style="display:none;" data-ajax="<?php echo esc_url(admin_url('admin-ajax.php')); ?>" data-nonce="<?php echo esc_attr(wp_create_nonce('vms_admin_nonce')); ?>">
+  <h2>Sync vouchers</h2>
+  <p class="description">
+    Sync legacy voucher posts from WordPress into VMS. This checks by voucher code and creates any missing vouchers in batches.
+  </p>
+  <p>
+    <label for="vms-sync-batch"><strong>Batch size</strong></label>
+    <input type="number" min="1" max="100" step="1" id="vms-sync-batch" value="25" />
+  </p>
+  <p>
+    <button type="button" class="button button-primary" id="vms-sync-start">Sync vouchers</button>
+    <button type="button" class="button" id="vms-sync-stop" disabled>Stop</button>
+  </p>
+  <div id="vms-sync-status" class="description">Idle.</div>
+  <hr />
+  <h3>Sync salons</h3>
+  <p class="description">
+    Sync WordPress salon posts into VMS so redeemed vouchers can link to the correct salon.
+  </p>
+  <p>
+    <button type="button" class="button" id="vms-sync-salons">Sync salons</button>
+  </p>
+  <div id="vms-sync-salons-status" class="description">Idle.</div>
 </div>
 <?php submit_button(); ?>
 <p class="description">

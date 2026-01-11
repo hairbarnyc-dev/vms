@@ -2,7 +2,7 @@ import crypto from 'crypto'
 import * as Vouchers from '../models/vouchersModel.js'
 import * as Orders from '../models/ordersModel.js'
 import { pool } from '../config/db.js'
-import { redeem as redeemModel } from '../models/redemptionsModel.js'
+import { redeem as redeemModel, getByVoucherId as getRedemptionByVoucherId, redeemLegacy as redeemLegacyModel } from '../models/redemptionsModel.js'
 import { logAction } from '../utils/audit.js'
 
 const genCode = () => crypto.randomBytes(6).toString('hex').toUpperCase() // 12 chars, A-F/0-9 only
@@ -131,6 +131,149 @@ export const create = async (req, res, next) => {
   try {
     const result = await createVoucherRecord(req.body, req)
     res.status(201).json({ id: result.voucherId, code: result.code })
+  } catch (e) {
+    next(e)
+  }
+}
+
+const findVoucherByCodeOrOrder = async (payload, conn) => {
+  const code = (payload.code || '').trim()
+  if (code) {
+    const byCode = await Vouchers.getByCode(code, conn)
+    if (byCode) return { voucher: byCode, codeUpdated: false }
+  }
+
+  const orderData = normalizeOrderPayload(payload)
+  if (!orderData.external_id) return { voucher: null, codeUpdated: false }
+  const order = await Orders.getByExternalId({ source: orderData.source, external_id: orderData.external_id }, conn)
+  if (!order) return { voucher: null, codeUpdated: false }
+  const candidates = await Vouchers.listByOrderId(order.id, conn)
+  if (!candidates.length) return { voucher: null, codeUpdated: false }
+
+  let match = null
+  if (candidates.length === 1) {
+    match = candidates[0]
+  } else {
+    const title = (payload.title || '').trim()
+    const faceValue = Number(payload.face_value ?? 0) || 0
+    const filtered = candidates.filter((v) => {
+      const titleMatch = title ? v.title === title : true
+      const valueMatch = faceValue ? Math.abs(Number(v.face_value || 0) - faceValue) < 0.01 : true
+      return titleMatch && valueMatch
+    })
+    if (filtered.length === 1) match = filtered[0]
+  }
+
+  if (match && code) {
+    await Vouchers.update(match.id, { code }, conn)
+    return { voucher: { ...match, code }, codeUpdated: true }
+  }
+  return { voucher: match, codeUpdated: false }
+}
+
+const syncVoucherRecord = async (payload, req) => {
+  const conn = await pool.getConnection()
+  try {
+    await conn.beginTransaction()
+    const customer_id = await ensureCustomer(conn, payload.customer)
+    const orderData = normalizeOrderPayload(payload)
+    const order_id = await Orders.upsertOrder(
+      {
+        external_id: orderData.external_id,
+        order_id: orderData.order_id,
+        source: orderData.source,
+        customer_id,
+        amount: orderData.face_value,
+        order_total: orderData.order_total,
+        currency: orderData.currency,
+        status: payload.order_status || 'COMPLETED',
+      },
+      conn
+    )
+    await Orders.replaceOrderProducts(order_id, orderData.products, conn)
+
+    const now = new Date()
+    const defaultExpiry = new Date(
+      now.getFullYear() + 1,
+      now.getMonth(),
+      now.getDate(),
+      now.getHours(),
+      now.getMinutes(),
+      now.getSeconds(),
+      now.getMilliseconds()
+    )
+    const expiresAt = payload.expires_at ? new Date(payload.expires_at) : defaultExpiry
+    const code = (payload.code || '').trim() || genCode()
+    const status = payload.status || undefined
+
+    const existing = await findVoucherByCodeOrOrder({ ...payload, code }, conn)
+    let created = false
+    let updated = false
+    let codeUpdated = existing.codeUpdated
+    let voucherId = existing.voucher ? existing.voucher.id : null
+
+    if (!existing.voucher) {
+      voucherId = await Vouchers.createVoucher(
+        {
+          code,
+          salon_id: payload.salon_id || null,
+          order_id,
+          customer_id,
+          title: orderData.title,
+          face_value: orderData.face_value,
+          currency: orderData.currency,
+          expires_at: expiresAt,
+        },
+        conn
+      )
+      created = true
+    } else {
+      const updatePayload = {
+        order_id,
+        customer_id,
+        title: orderData.title,
+        face_value: orderData.face_value,
+        currency: orderData.currency,
+        expires_at: expiresAt,
+      }
+      if (payload.salon_id !== undefined) updatePayload.salon_id = payload.salon_id || null
+      if (status) updatePayload.status = status
+      await Vouchers.update(existing.voucher.id, updatePayload, conn)
+      updated = true
+    }
+
+    if (status === 'REDEEMED' && payload.redeemed_salon_id) {
+      const redemption = await getRedemptionByVoucherId(voucherId, conn)
+      if (!redemption) {
+        const redeemedAt = payload.redeemed_at ? new Date(payload.redeemed_at) : null
+        await redeemLegacyModel(
+          {
+            voucher_id: voucherId,
+            salon_id: payload.redeemed_salon_id,
+            staff_user_id: req?.user?.id || 1,
+            redeemed_at: redeemedAt,
+            notes: payload.redeemed_notes || null,
+          },
+          conn
+        )
+        updated = true
+      }
+    }
+
+    await conn.commit()
+    return { voucherId, code, created, updated, codeUpdated }
+  } catch (err) {
+    await conn.rollback()
+    throw err
+  } finally {
+    conn.release()
+  }
+}
+
+export const syncFromWp = async (req, res, next) => {
+  try {
+    const result = await syncVoucherRecord(req.body, req)
+    res.json(result)
   } catch (e) {
     next(e)
   }

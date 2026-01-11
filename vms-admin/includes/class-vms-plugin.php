@@ -23,7 +23,9 @@ public static function enqueue( $hook ){
 
   if ($page === 'vms-admin') {
     wp_enqueue_media();
-    wp_enqueue_script('vms-admin-settings', VMS_ADMIN_URL.'assets/js/settings.js', ['jquery'], VMS_ADMIN_VERSION, true);
+    $settings_js = VMS_ADMIN_PATH.'assets/js/settings.js';
+    $settings_ver = file_exists($settings_js) ? filemtime($settings_js) : VMS_ADMIN_VERSION;
+    wp_enqueue_script('vms-admin-settings', VMS_ADMIN_URL.'assets/js/settings.js', ['jquery', 'vms-admin-js'], $settings_ver, true);
   }
 
   wp_enqueue_style('vms-admin-css', VMS_ADMIN_URL.'assets/css/admin.css', [], VMS_ADMIN_VERSION);

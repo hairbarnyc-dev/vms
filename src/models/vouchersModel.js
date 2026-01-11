@@ -12,8 +12,9 @@ export const createVoucher = async (data, conn = null) => {
   return res.insertId
 }
 
-export const getByCode = async (code) => {
-  const [rows] = await pool.query(
+export const getByCode = async (code, conn = null) => {
+  const db = conn || pool
+  const [rows] = await db.query(
     `SELECT v.*, s.name AS salon_name
      FROM vouchers v
      LEFT JOIN salons s ON s.id=v.salon_id
@@ -130,6 +131,18 @@ export const softDelete = async (id) => {
   await pool.query('UPDATE vouchers SET is_deleted=1, deleted_at=NOW() WHERE id=? AND is_deleted=0', [id])
 }
 
+export const listByOrderId = async (order_id, conn = null) => {
+  if (!order_id) return []
+  const db = conn || pool
+  const [rows] = await db.query(
+    `SELECT v.*
+     FROM vouchers v
+     WHERE v.order_id=? AND v.is_deleted=0
+     ORDER BY v.id ASC`,
+    [order_id]
+  )
+  return rows
+}
 
 export const voidAtSalon = async ({ voucher_id, salon_id, user_id, notes }) => {
   // Optional notes can be saved in vouchers.notes (append)

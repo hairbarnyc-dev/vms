@@ -1,0 +1,1619 @@
+<?php 
+
+
+function getVoucherIdField($item_meta, $voucher_id) {
+  $item_voucher_id = null;
+
+  foreach ($item_meta as $meta) {
+    if ($meta->key == '_voucher_id' && $meta->value == $voucher_id ) {
+        
+        $item_voucher_id = $meta->value; 
+        break;
+    }
+  }
+
+  return $item_voucher_id;
+}
+
+
+
+function add_voucher_meta_boxes() {
+  add_meta_box('voucher_info_meta_box', 'Vouchers & Account Information', 'voucher_info_meta_box_callback', 'voucher', 'normal', 'high');
+}
+add_action('add_meta_boxes', 'add_voucher_meta_boxes');
+
+
+function voucher_info_meta_box_callback($post) {
+
+  $voucher_number = get_post_meta($post->ID, '_voucher_id', true);
+  $order_number = get_post_meta($post->ID, '_order_id', true);
+  $order_num = get_post_meta($post->ID, '_order_number', true);
+  
+  $voucher_date = get_post_meta($post->ID, '_voucher_date', true);
+  $expiration_date = get_post_meta($post->ID, '_voucher_exp_date', true);
+  $customer_name = get_post_meta($post->ID, '_customer_name', true);
+  $customer_email = get_post_meta($post->ID, '_customer_email', true);
+  $barcode_code = get_post_meta($post->ID, '_voucher_barcode_code', true);
+  $barcode_img = get_post_meta($post->ID, '_voucher_barcode', true);
+
+  $is_imported_voucher = get_post_meta($post->ID, '_is_import', true);
+
+  $admin_url = null;
+
+
+
+  if(!$is_imported_voucher) {
+    $admin_url = admin_url('post.php?post=' .  $order_number . '&action=edit');
+  } else {
+    $formatted_order_number = str_pad($order_number, 9, "0", STR_PAD_LEFT);
+    $args = array(
+        'numberposts' => -1, 
+        'post_type'   => 'shop_order', 
+        'post_status' => array_keys(wc_get_order_statuses()), 
+        'meta_query'  => array(
+            array(
+                'key'     => '_order_number', 
+                'value'   => $formatted_order_number,
+                'compare' => 'LIKE',
+            ),
+        ),
+    );
+  
+    $orders = get_posts($args);
+  
+    if (!empty($orders)) {
+        foreach ($orders as $order_post) {
+            $admin_url = admin_url('post.php?post=' .  $order_post->ID . '&action=edit');
+        }
+    } 
+  }
+
+
+//
+//   $all_meta_for_post = get_post_meta($post->ID);
+//
+//   echo '<pre>' . print_r($all_meta_for_post, true) . '</pre>';
+
+
+  $voucher_status = get_post_meta($post->ID, '_selected_status', true);
+
+
+
+
+  //echo $voucher_status;
+
+  echo '<div class="voucher-main-info voucher-info-box">';
+
+  echo '<div class="voucher-info-left">';
+    echo '<div class="voucher-info-head">';
+    echo '<div class="col">';
+      echo '<div class="voucher-info-box-title">Voucher # '.$voucher_number.'</div>';
+      echo '<div class="voucher-info-box-order" style="margin-bottom: 20px;">Order <a href="'. ($admin_url ? $admin_url : '') .'"># '.$order_num.'</a></div>';
+    echo '</div>';
+    $status_class = '';
+
+    if($voucher_status === 'Canceled') {
+      $status_class = 'canceled';
+    } else if ($voucher_status === 'Used') {
+      $status_class = 'used';
+    }else if ($voucher_status === 'Active') {
+      $status_class = 'active';
+    }
+
+    echo '<div class="voucher-status-indicator ' .$status_class. '">'.$voucher_status.'</div>';
+    echo '</div>';
+    
+    echo '<div class="vaucher-field">';
+    echo '<label for="voucher_date">Voucher Date:</label>';
+    echo '<input type="text" id="voucher_date" name="voucher_date" value="'.esc_attr($voucher_date).'">';
+    echo '</div>';
+    
+    echo '<div class="vaucher-field nobg">';
+    echo '<label for="voucher_exp_date">Expiration Date:</label>';
+    echo '<input type="text" id="voucher_exp_date" name="voucher_exp_date" value="'.esc_attr($expiration_date).'">';
+    echo '</div>';
+    
+    echo '<div class="vaucher-field">'; ?>
+      <?php 
+      $selected_salon = get_post_meta( $post->ID, '_selected_status', true );
+      $previous_selected_status = get_post_meta($post->ID, '_previous_order_status', true);
+
+
+      $order_id = get_post_meta( $post->ID, '_order_id', true );
+      $order = wc_get_order( $order_id );
+      $order_status = $order ? $order->get_status() : '';
+
+      ?>
+      <label for="selected_status"><?php _e( 'Select voucher status', 'textdomain' ); ?></label>
+      <select id="selected_status" name="selected_status" <?php echo $order_status === 'cancelled' || $order_status === 'refunded' ? 'disabled' : ''; ?>>
+          <option value="Active" <?php selected( $selected_salon, "Processing"); ?>>  <?php _e( "Active", 'textdomain' ); ?> </option>
+          <option value="Used" <?php selected( $selected_salon, "Used"); ?>>  <?php _e( "Used", 'textdomain' ); ?> </option>
+          <option value="Canceled" <?php selected( $selected_salon, "Canceled"); ?>>  <?php _e( "Canceled", 'textdomain' ); ?> </option>
+      </select>
+<?php
+
+     echo '</div>';
+
+    if($barcode_img) {
+     echo '<div class="vaucher-field vaucher-field--barcode nobg">';
+     echo '<label>Barcode:</label>';
+     echo '<div class="barcode">';
+     echo '<img src="data:image/png;base64,'.$barcode_img.'" />'; 
+     echo '<span>'.$barcode_code.'</span>';
+     echo '</div>';
+     echo '</div>';
+    }
+
+  echo '</div>';
+
+  echo '<div class="voucher-info-right">';
+
+    echo '<div class="voucher-info-box-title" style="margin-bottom: 20px;">Account information</div>';
+
+    echo '<div class="vaucher-field">';
+    echo '<span>Customer Name</span>';
+    echo '<span>'.$customer_name.'</span>';
+    echo '</div>';
+
+    echo '<div class="vaucher-field nobg">';
+    echo '<span>Customer Email</span>';
+    echo '<span>'.$customer_email.'</span>';
+    echo '</div>';
+
+    echo '<div class="vaucher-field">';
+    $log_entries = get_post_meta($post->ID, '_voucher_action_log', true);
+
+    echo '<ul>';
+    $is_redeem = get_post_meta($post->ID, '_is_redeem', true);
+    $redeem_at = get_post_meta($post->ID, '_date-redeem', true); 
+
+    if ( $is_redeem && $is_redeem === '1' ) {
+        $sel_raw = get_post_meta($post->ID, '_selected_salon', true);
+
+        // Map legacy ids → new ids if needed
+        $sel = function_exists('md_map_old_salon_id') ? md_map_old_salon_id($sel_raw) : $sel_raw;
+
+        // Resolve to a readable name
+        $salon_name = '';
+        if ( $sel && $sel !== 'NONE' && $sel !== 'Redeem' ) {
+            if ( is_numeric($sel) ) {
+                $title = get_the_title( (int) $sel );
+                if ( $title ) $salon_name = $title;
+            } else {
+                $salon_name = $sel;
+            }
+        }
+
+        // Nicely formatted date/time (admin local time)
+        $when = $redeem_at;
+        if ( $redeem_at ) {
+            $ts   = strtotime($redeem_at);
+            $when = $ts ? date_i18n('Y-m-d H:i', $ts) : $redeem_at;
+        }
+
+        echo '<li>' . ( $when ? esc_html($when) . ' - ' : '' ) . ' The voucher was used ' 
+        . ( $salon_name ? 'at <strong>' . esc_html($salon_name) . '</strong>' : '' )
+        . ' </li>';
+        echo '</ul>';
+        echo '</div>';
+        return;
+    }
+
+
+    if (!empty($log_entries)) {
+        $html;
+        foreach ($log_entries as $entry) {
+          $html = $entry;
+        }
+
+        echo '<li>' . $html . '</li>';
+    } else {
+        echo '<li>Voucher not used.</li>';
+    }
+    echo '</ul>';
+    echo '</div>';
+
+    $all_meta_for_post = get_post_meta(get_the_ID());
+    //var_dump($all_meta_for_post);
+
+
+  echo '</select>';
+
+echo '</div>';
+
+  echo '</div>';
+}
+
+/**
+ * Render visible (non-underscore) item meta as HTML — ideal for add-ons.
+ * Falls back to manual rendering if wc_display_item_meta() is unavailable.
+ */
+function vcp_render_addons_html( WC_Order_Item $item ) {
+    if ( function_exists('wc_display_item_meta') ) {
+        // Renders only non-hidden meta (keys not starting with "_")
+        $html = wc_display_item_meta( $item, array(
+            'echo'      => false,
+            'separator' => '<br/>',
+            'autop'     => false,
+        ) );
+        return $html ?: '';
+    }
+
+    // Fallback: manual render of non-hidden meta
+    $out = [];
+    foreach ( $item->get_meta_data() as $meta ) {
+        if ( ! method_exists( $meta, 'get_data' ) ) continue;
+        $data = $meta->get_data();
+        if ( empty($data['key']) || strpos($data['key'], '_') === 0 ) continue; // skip hidden/internal
+        // Skip some common non-add-on keys if needed
+        if ( in_array( $data['key'], array('SKU','qty','Quantity'), true ) ) continue;
+        $val = is_array($data['value']) ? wp_json_encode($data['value']) : (string) $data['value'];
+        $out[] = sprintf('<strong>%s:</strong> %s', esc_html($data['key']), esc_html($val));
+    }
+    return implode('<br/>', $out);
+}
+
+function vcp_addons_value_only( WC_Order_Item $item ) {
+    $vals = (array) wc_get_order_item_meta( $item->get_id(), 'ADD-ONS', false );
+    $vals = array_map( 'wp_kses_post', $vals );
+    return implode('<br/>', array_filter($vals));
+}
+
+function vcp_render_addons_html_wo_title( WC_Order_Item $item, $only_key = 'ADD-ONS' ) {
+    $metas = method_exists($item, 'get_formatted_meta_data') ? $item->get_formatted_meta_data('') : [];
+    if (empty($metas)) return '';
+
+    $out = [];
+    foreach ($metas as $m) {
+        $key = isset($m->display_key) ? wp_strip_all_tags($m->display_key) : '';
+
+        // keep only the ADD-ONS group by default
+        if ($only_key && strcasecmp($key, $only_key) !== 0) continue;
+
+        // extra safety: skip anything that looks like a voucher/coupon/code
+        if (preg_match('/voucher|coupon|code/i', $key)) continue;
+
+        $out[] = wp_kses_post($m->display_value); // value only e.g. "Trim (+$38.00)"
+    }
+    return implode('<br/>', $out);
+}
+
+function save_voucher_info($post_id) {
+  if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
+  if ($parent_id = wp_is_post_revision($post_id)) {
+      $post_id = $parent_id;
+  }
+
+  $order_id = get_post_meta($post_id, '_order_id', true);
+  $order = wc_get_order($order_id);
+  $current_status = $order ? $order->get_status() : '';
+  
+
+  $previous_status = get_post_meta($post_id, '_previous_order_status', true);
+  $previous_selected_status = get_post_meta($post_id, '_previous_order_status', true);
+
+
+  if (isset($_POST['voucher_date'])) {
+      update_post_meta($post_id, '_voucher_date', sanitize_text_field($_POST['voucher_date']));
+  }
+  if (isset($_POST['voucher_exp_date'])) {
+      update_post_meta($post_id, '_voucher_exp_date', sanitize_text_field($_POST['voucher_exp_date']));
+  }
+  if (isset($_POST['selected_status'])) {
+      update_post_meta($post_id, '_selected_status', $_POST['selected_status']);
+
+      // if ($_POST['selected_status'] !==  $previous_selected_status ) {
+
+      // }
+  }
+
+
+  
+
+ 
+  // if ($current_status !== $previous_status) {
+  //     log_voucher_action(
+  //       $post_id, 
+  //       'Order Status Changed', 
+  //       'Order status changed from ' . $previous_status . ' to ' . $current_status
+  //     );
+
+   
+  //     update_post_meta($post_id, '_previous_order_status', $current_status);
+  // }
+
+
+  if (isset($_POST['selected_salon'])) {
+    $current_selected_salon = $_POST['selected_salon'];
+    $previous_selected_salon = get_post_meta($post_id, '_selected_salon', true);
+    
+
+    if ($current_selected_salon != $previous_selected_salon) {
+        update_post_meta($post_id, '_selected_salon', $current_selected_salon);
+        $salon_name = get_the_title($current_selected_salon); 
+        log_voucher_action($post_id, ' ', $salon_name);
+    }
+}
+  
+}
+add_action('save_post', 'save_voucher_info');
+
+
+
+// Product details
+
+
+add_action( 'add_meta_boxes', 'add_woocommerce_product_info_metabox' );
+function add_woocommerce_product_info_metabox() {
+    add_meta_box(
+        'woocommerce-product-info', 
+        'Product Information',
+        'woocommerce_product_info_metabox_content', 
+        'voucher', 
+        'normal', 
+        'high'
+    );
+}
+
+function md_map_old_salon_id($val){
+  $map = [46796=>2365,43028=>2364,43027=>2363,8817=>2362,8816=>2361,8813=>2360,8812=>2359,7896=>2358,7895=>2357];
+  if (is_numeric($val)) { $ival=(int)$val; return $map[$ival] ?? $ival; }
+  return $val;
+}
+
+function md_get_product_id_from_order_by_voucher( $order_id, $voucher_id = '' ) {
+    $order = wc_get_order( $order_id );
+    if ( ! $order ) return 0;
+
+    foreach ( $order->get_items() as $item_id => $item ) {
+        // If we have a voucher code, only match the item that has it
+        $matches = true;
+        if ( $voucher_id !== '' ) {
+            $matches = false;
+            $vid  = wc_get_order_item_meta( $item_id, '_voucher_id', true );
+            $vids = wc_get_order_item_meta( $item_id, '_voucher_ids', true );
+            if ( $vid && (string) $vid === (string) $voucher_id ) {
+                $matches = true;
+            } elseif ( ! $matches && ! empty( $vids ) ) {
+                if ( is_array( $vids ) ) {
+                    $matches = in_array( (string) $voucher_id, array_map( 'strval', $vids ), true );
+                } else {
+                    $matches = (string) $vids === (string) $voucher_id;
+                }
+            }
+        }
+        if ( ! $matches ) continue;
+
+        // Prefer the exact item product (variation-safe)
+        $product = $item->get_product();
+        if ( $product ) {
+            return (int) $product->get_id(); // returns variation ID when applicable
+        }
+
+        // Fallback: try SKU → product ID
+        $sku = $product ? $product->get_sku() : wc_get_order_item_meta( $item_id, '_sku', true );
+        if ( $sku ) {
+            $pid = wc_get_product_id_by_sku( $sku );
+            if ( $pid ) return (int) $pid;
+        }
+    }
+    return 0;
+}
+
+function find_product_by_id_or_name($product_id, $product_name) {
+  $product = wc_get_product($product_id);
+
+  // if (!$product) {
+  //     $args = array(
+  //         'posts_per_page' => 1,
+  //         'post_type'      => 'product',
+  //         'post_status'    => 'publish',
+  //         'title'          => $product_name,
+  //     );
+
+  //     $products = new WP_Query($args);
+
+  //     if ($products->have_posts()) {
+  //         while ($products->have_posts()) {
+  //             $products->the_post();
+  //             $product = wc_get_product(get_the_ID());
+  //             wp_reset_postdata();
+  //             return $product;
+  //         }
+  //     }
+  // }
+
+  return $product;
+}
+
+
+
+function woocommerce_product_info_metabox_content( $post ) {
+ 
+  $product_id = get_post_meta( $post->ID, '_product_id', true );
+  $voucher_prd_name = get_post_meta($post->ID, '_product_name', true);
+  $order_id = get_post_meta( $post->ID, '_order_id', true );
+  $order_id = intval($order_id );
+  $voucher_id = get_post_meta( $post->ID, '_voucher_id', true );
+  $voucher_date = get_post_meta($post->ID, '_voucher_date', true);
+  $voucher_number = get_post_meta($post->ID, '_voucher_id', true);
+
+  $is_imported_product = get_post_meta( $post->ID, '_is_import', true );
+  $expiration_date = get_post_meta($post->ID, '_voucher_exp_date', true);
+  $voucher_amount = get_post_meta($post->ID, '_amount', true);
+
+  // Resolve product if missing OR invalid (e.g., product deleted/trashed)
+  $needs_resolve = false;
+
+  // 1) If empty -> resolve
+  if ( empty( $product_id ) ) {
+      $needs_resolve = true;
+  } else {
+      // 2) If set but not a valid/usable product -> resolve
+      $maybe_product = wc_get_product( $product_id );
+      $status = $maybe_product ? get_post_status( $product_id ) : false;
+
+      if ( ! $maybe_product || ! $status || 'trash' === $status ) {
+          $needs_resolve = true;
+      }
+  }
+
+  if ( $needs_resolve && $order_id ) {
+      // Uses the helper from earlier: matches the order item that has this voucher code,
+      // falls back to SKU if needed.
+      $resolved = md_get_product_id_from_order_by_voucher( (int) $order_id, (string) $voucher_id );
+      if ( $resolved ) {
+          $product_id = (int) $resolved;
+
+          // Optional: cache for next time
+          // update_post_meta( $post->ID, '_product_id', $product_id );
+      }
+  }
+
+  if( $is_imported_product === '1') {
+
+    $voucher_amount = str_replace(',', '.', $voucher_amount);
+    $voucher_amount = (float)$voucher_amount;
+    $voucher_amount = number_format($voucher_amount, 2);
+
+    echo '<div class="table-box">';
+            echo '<table class="voucher-item-table">';
+            echo '<thead><tr><td><strong>Item</strong></td><td style="width: 20%;"><strong>Value</strong></td></tr></thead>';
+            echo '<tbody> <tr>';
+
+            echo '<td>';
+              echo '<div class="woocommerce-product-info-item">';
+  
+                echo '<div class="vprd-text">';
+                  echo '<p><strong>' .$voucher_prd_name.  '</strong></p>';
+           
+
+                  
+                 
+                echo '</div>';
+              echo '</div>';
+            echo '</td>';
+
+            echo '<td>';
+              echo '<p>$' .    number_format((float)$voucher_amount , 2) . ' </p>';
+            echo '</td>';
+      
+        echo '</tr></tbody>';
+        echo '</table>';
+
+
+
+        // $selected_salon = get_post_meta( $post->ID, '_selected_salon', true );
+
+        $selected_salon = md_map_old_salon_id( get_post_meta($post->ID, '_selected_salon', true) );
+
+        // echo "selected_salon--->".$selected_salon;
+      
+
+        $custom_posts = get_posts(array(
+          'post_type' => 'salon',
+          'posts_per_page' => -1
+        ));
+
+        $order_id = get_post_meta( $post->ID, '_order_id', true );
+        $order = wc_get_order( $order_id );
+        $order_status = $order ? $order->get_status() : '';
+
+        ?>
+      
+        <div class="actions-row">
+        <select id="selected_salon" name="selected_salon" <?php echo $order_status === 'cancelled' || $order_status === 'refunded' ? 'disabled' : ''; ?>>
+           
+            <option value="Redeem" <?php selected( $selected_salon, "Redeem"); ?>>  <?php _e( "Redeem", 'textdomain' ); ?> </option>
+            <?php  foreach ($custom_posts as $post) { ?>
+              <option value="<?= $post->ID; ?>" <?php selected( $selected_salon, $post->ID); ?>>   <?php _e( $post->post_title, 'textdomain' ); ?> </option>
+            <?php } ?>
+        </select>
+
+
+        <button id="regenerate_voucher" data-order-id="<?php echo esc_attr( $order_id ); ?>" data-voucher-id="<?php echo esc_attr( $voucher_number ); ?>">Regenerate Voucher</button>
+
+        <script type="text/javascript">
+            jQuery(document).ready(function($) {
+                $('#regenerate_voucher').on('click', function(e) {
+                    e.preventDefault();
+
+                    var orderId = $(this).data('order-id');
+                    var voucherId = $(this).data('voucher-id');
+
+                    $.ajax({
+                        url: (typeof ajaxurl !== 'undefined' ? ajaxurl : '/wp-admin/admin-ajax.php'),
+                        method: 'POST',
+                        dataType: 'json',
+                        data: {
+                            action: 'vcp_redeem_voucher',
+                            post_id: currentId,
+                            salon_id: salonId,
+                            redeemed_at: when,
+                            security: currentNonce
+                        }
+                    }).done(function(resp){
+                        if (resp && resp.success) {
+                            row.find('td.column-status').html(resp.data.status_html);
+                            row.find('td.column-salon_redeemed').text(resp.data.salon_redeemed);
+                            row.find('td.column-vcp_actions').html('—');
+                            closeModal();
+                        } else {
+                            alert((resp && resp.data) ? resp.data : 'Server error');
+                            btn.prop('disabled', false).text('Redeem');
+                        }
+                    }).fail(function(xhr, status, err){
+                        console.error('Redeem AJAX failed:', status, err, xhr && xhr.responseText);
+                        alert('Network error: ' + status + (xhr && xhr.status ? ' ('+xhr.status+')' : ''));
+                        btn.prop('disabled', false).text('Redeem');
+                    });
+                });
+            });
+          </script> </div></div> <?php
+
+
+        return;
+  }
+
+
+
+
+
+
+
+
+    
+
+    
+    if ( ! empty( $product_id ) ) {
+
+
+
+        // $product = wc_get_product( $product_id );
+        $product = find_product_by_id_or_name($product_id, $voucher_prd_name);
+
+      
+
+        if (!$product) { 
+          echo '<p>Product not found.</p>';
+          return;
+        }
+
+        
+     
+        $voucher_number = get_post_meta($post->ID, '_voucher_id', true);
+        $order = wc_get_order( $order_id );
+
+
+       
+
+        error_log("ORDER NUM" . intval($order_id));
+        error_log("ORDER" . $order);
+
+        $items = $order->get_items();
+
+        $name = $product->get_name();
+        $product_image_id = $product->get_image_id();
+        $product_image_url = wp_get_attachment_image_url($product_image_id, 'thumbnail');
+        
+
+
+
+        
+        
+
+        if ( $product ) {
+
+            echo '<div class="table-box">';
+            echo '<table class="voucher-item-table">';
+            echo '<thead><tr><td><strong>Item</strong></td><td style="width: 20%;"><strong>Value</strong></td></tr></thead>';
+            echo '<tbody> <tr>';
+
+            echo '<td>';
+              echo '<div class="woocommerce-product-info-item">';
+                echo '<div class="vprd-photo">	<img width="100%" src="'.esc_url($product_image_url).'" /></div>';
+
+                echo '<div class="vprd-text">';
+                  echo '<p><strong>' . esc_html( $name) . '</strong></p>';
+                  echo '<p><strong>SKU:</strong> ' . esc_html( $product->get_sku() ) . '</p>';
+
+                  
+                  
+                  foreach ( $items as $item_id => $item ) {
+                    $prd = $item->get_product(); 
+                    $prd_id = $prd->get_id();
+          
+                    if($prd_id == $product_id) {
+                      $item_meta_data = $item->get_meta_data(); 
+                      $vid = getVoucherIdField($item_meta_data, $voucher_id);
+
+                      if($voucher_id == $vid) {
+
+                      $item_meta_data = $item->get_meta_data(); 
+          
+                      $addons_output = '';
+          
+                      $addons_output = vcp_render_addons_html( $item );
+          
+                      if ( ! empty( $addons_output ) ) {
+                            echo '' . $addons_output;
+                        } else {
+                            echo '<p><em>No add-ons selected</em></p>';
+                        }
+                    }
+                  }
+                  }
+                echo '</div>';
+              echo '</div>';
+            echo '</td>';
+
+            echo '<td>';
+
+              $order_item = null;
+              foreach ($order->get_items() as $item) {
+                  if ($item->get_product_id() == $product->get_id()) {
+                      $order_item = $item;
+                      break;
+                  }
+              }
+              
+              if ($order_item) {
+                  $final_price = $order_item->get_total() / $order_item->get_quantity();
+              } else {
+                  $final_price = $product->get_price(); 
+              }
+              
+            
+              echo wc_price($final_price);
+
+                echo '</td>';
+        } else {
+            echo '<p>Product not found.</p>';
+        }
+
+        echo '</tr></tbody>';
+        echo '</table>';
+
+        
+        // $selected_salon = get_post_meta( $post->ID, '_selected_salon', true );
+
+        $selected_salon = md_map_old_salon_id( get_post_meta($post->ID, '_selected_salon', true) );
+      
+
+        $custom_posts = get_posts(array(
+          'post_type' => 'salon',
+          'posts_per_page' => -1
+        ));
+
+        $order_id = get_post_meta( $post->ID, '_order_id', true );
+        $order = wc_get_order( $order_id );
+        $order_status = $order ? $order->get_status() : '';
+
+        ?>
+      
+        <div class="actions-row">
+        <select id="selected_salon" name="selected_salon" <?php echo $order_status === 'cancelled' || $order_status === 'refunded' ? 'disabled' : ''; ?>>
+           
+            <option value="Redeem" <?php selected( $selected_salon, "Redeem"); ?>>  <?php _e( "Redeem", 'textdomain' ); ?> </option>
+            <?php  foreach ($custom_posts as $post) { ?>
+              <option value="<?= $post->ID; ?>" <?php selected( $selected_salon, $post->ID); ?>>   <?php _e( $post->post_title, 'textdomain' ); ?> </option>
+            <?php } ?>
+        </select>
+        <?php
+
+
+
+        ?>
+
+        <button id="regenerate_voucher" data-order-id="<?php echo esc_attr( $order_id ); ?>" data-voucher-id="<?php echo esc_attr( $voucher_number ); ?>">Regenerate Voucher</button>
+
+        <script type="text/javascript">
+            jQuery(document).ready(function($) {
+                $('#regenerate_voucher').on('click', function(e) {
+                    e.preventDefault();
+
+                    var orderId = $(this).data('order-id');
+                    var voucherId = $(this).data('voucher-id');
+
+                    $.ajax({
+                        url: '/wp-admin/admin-ajax.php', 
+                        type: 'POST',
+                        data: {
+                            'action': 'regenerate_voucher', 
+                            'order_id': orderId,
+                            'product_id': <?= $product_id; ?>,
+                            'voucher_id': voucherId,
+                            'voucher_date': '<?= $voucher_date; ?>',
+                            'expiration_date': '<?= $expiration_date; ?>',
+                        },
+                        success: function(response) {
+                          if(response.success && response.data.file_url) {
+                              window.open(response.data.file_url, '_blank').focus();
+                          } else {
+                              alert('Unable to regenerate voucher.');
+                          }
+                        }
+                    });
+                });
+            });
+            </script>
+
+</div>
+
+
+        <?php 
+
+        echo '</div>';
+    } else {
+        echo '<p>No product ID found in voucher meta.</p>';
+    }
+}
+
+
+function save_voucher_product_details_info($post_id) {
+  if ( isset( $_POST['selected_salon'] ) ) {
+      update_post_meta( $post_id, '_selected_salon', sanitize_text_field( $_POST['selected_salon'] ) );
+  }
+
+
+  if ( isset( $_POST['selected_salon'] ) && isset( $_POST['selected_status'] ) ) {
+    $selected_salon = $_POST['selected_salon'];
+    $selected_status = $_POST['selected_status'];
+  
+    if($selected_status === 'Canceled') {
+      return;
+    }
+  
+    if ( $selected_salon !== 'Redeem' ) {
+        update_post_meta( $post_id, '_selected_status', 'Used' );
+    } else {
+      update_post_meta( $post_id, '_selected_status', 'Active' );
+    }
+  }
+}
+add_action('save_post', 'save_voucher_product_details_info');
+
+
+
+
+
+// Order Details
+
+
+
+add_action( 'add_meta_boxes', 'add_order_details_metabox' );
+function add_order_details_metabox() {
+    add_meta_box(
+        'woocommerce-order-details', 
+        'Order Details', 
+        'order_details_metabox_content', 
+        'voucher', 
+        'normal', 
+        'high' 
+    );
+}
+
+
+function order_details_metabox_content( $post ) {
+  $order_id = get_post_meta( $post->ID, '_order_id', true );
+  $product_id = get_post_meta( $post->ID, '_product_id', true );
+  $voucher_id = get_post_meta( $post->ID, '_voucher_id', true );
+
+  $voucher_prd_name = get_post_meta($post->ID, '_product_name', true);
+  $is_imported_product = get_post_meta( $post->ID, '_is_import', true );
+  $expiration_date = get_post_meta($post->ID, '_voucher_exp_date', true);
+  $voucher_amount = get_post_meta($post->ID, '_amount', true);
+
+
+
+  if($is_imported_product === '1' ) {
+
+    $voucher_amount = str_replace(',', '.', $voucher_amount);
+    $voucher_amount = (float)$voucher_amount;
+    $voucher_amount = number_format($voucher_amount, 2);
+
+    echo '<div class="table-scroll">';
+    echo '<table class="widefat voucher-item-table " cellspacing="0">';
+    echo '<thead>';
+    echo '<tr>';
+    echo '<th><strong>Product</strong></th>';
+    echo '<th><strong>Model</strong></th>';
+    echo '<th><strong>Quantity</strong></th>';
+    echo '<th><strong>Unit Price</strong></th>';
+    echo '<th><strong>Add-ons</strong></th>';
+    echo '<th width="80px"><strong>Total</strong></th>';
+    echo '</tr>';
+    echo '</thead>';
+    echo '<tbody>';
+
+    
+    echo '<tr>';
+    echo '<td>' . $voucher_prd_name . '</td>';
+    echo '<td>-</td>';
+    echo '<td> 1 </td>';
+    echo '<td>$';
+    
+    echo $voucher_amount;
+
+    echo ' </td>';
+    echo '<td>';
+     echo '-';
+    echo '</td>';
+    echo '<td> $' . $voucher_amount . ' </td>';
+    echo '</tr>';
+    echo '<tr class="bgg">';
+    echo '<td colspan="5" style="text-align: right;"><strong>Subtotal</strong></td>';
+    echo '<td><strong> $' . $voucher_amount . '</strong></td>';
+    echo '</tr>';
+    echo '<tr class="bgg">';
+    echo '<td colspan="5" style="text-align: right;"><strong>Grand Total</strong></td>';
+    echo '<td><strong> $' . $voucher_amount . '</strong></td>';
+    echo '</tr>';
+    
+    echo '</tbody>';
+    echo '</table>';
+    echo '</div>';
+
+
+    return;
+  }
+
+
+
+
+
+    $order = wc_get_order( $order_id );
+    $items = $order->get_items();
+
+    echo '<div class="table-scroll">';
+    echo '<table class="widefat voucher-item-table " cellspacing="0">';
+    echo '<thead>';
+    echo '<tr>';
+    echo '<th><strong>Product</strong></th>';
+    echo '<th><strong>Model</strong></th>';
+    echo '<th><strong>Quantity</strong></th>';
+    echo '<th><strong>Unit Price</strong></th>';
+    echo '<th><strong>Add-ons</strong></th>';
+    echo '<th width="80px"><strong>Total</strong></th>';
+    echo '</tr>';
+    echo '</thead>';
+    echo '<tbody>';
+
+
+ 
+    
+    foreach ( $items as $item_id => $item ) {
+
+      
+
+
+        $item_meta = $item->get_meta_data();
+
+        $vid = getVoucherIdField($item_meta, $voucher_id);
+   
+
+        if($voucher_id == $vid) {
+
+          $product = $item->get_product();
+        $product_name = $product->get_name();
+        $sku = $product->get_sku();
+        $quantity = $item->get_quantity();
+        $total = $item->get_total(); 
+        $subtotal = $item->get_subtotal();
+
+        if($quantity > 1) {
+          for ( $i = 0; $i < $quantity; $i++ ) {
+            $total = round($item->get_total() / 2, 2); 
+            $subtotal = round($item->get_subtotal() / 2, 2);
+          }
+        }
+
+
+        
+
+
+        echo '<tr>';
+        echo '<td>' . esc_html( $product_name ) . '</td>';
+        echo '<td>' . esc_html( $sku ) . '</td>';
+        echo '<td> 1 </td>';
+        echo '<td>';
+				
+        $order_item = null;
+        foreach ($order->get_items() as $item) {
+            if ($item->get_product_id() == $product->get_id()) {
+                $order_item = $item;
+                break;
+            }
+        }
+        
+        if ($order_item) {
+            $final_price = $order_item->get_total() / $order_item->get_quantity();
+        } else {
+            $final_price = $product->get_price(); 
+        }
+        
+      
+        echo wc_price($final_price);
+
+        echo '</td>';
+        echo '<td>';
+          foreach ( $items as $item_id => $item ) {
+            $prd = $item->get_product(); 
+            $prd_id = $prd->get_id();
+
+            $item_meta_data = $item->get_meta_data(); 
+            $vid = getVoucherIdField($item_meta_data, $voucher_id);
+
+            if($prd_id == $product_id) {
+              if($voucher_id == $vid ) {
+           
+              
+              $addons_output = '';
+          
+            $addons_output = vcp_render_addons_html_wo_title( $item );
+
+            if ( ! empty( $addons_output ) ) {
+                echo '' . $addons_output;
+              } else {
+                echo 'Any selected add-ons</p>';
+              }
+            }
+          }
+          }
+        echo '</td>';
+        echo '<td> $' . esc_html( $total ) . '</td>';
+        echo '</tr>';
+      }
+    }
+    
+  
+    echo '<tr class="bgg">';
+    echo '<td colspan="5" style="text-align: right;"><strong>Subtotal</strong></td>';
+    echo '<td><strong> $' . $subtotal . '</strong></td>';
+    echo '</tr>';
+    echo '<tr class="bgg">';
+    echo '<td colspan="5" style="text-align: right;"><strong>Grand Total</strong></td>';
+    echo '<td><strong> $' . $total . '</strong></td>';
+    echo '</tr>';
+    
+    echo '</tbody>';
+    echo '</table>';
+    echo '</div>';
+}
+
+
+
+
+
+
+function log_voucher_action($post_id, $action, $details) {
+  $current_user = wp_get_current_user();
+  $log_entry = sprintf(
+      "%s - The voucher was used at the <strong> %s </strong> by <strong> %s </strong>", 
+      current_time('mysql'), 
+      // $action, 
+      $details, 
+      $current_user->user_login 
+  );
+
+  // Получаем текущий лог
+  $current_log = get_post_meta($post_id, '_voucher_action_log', true);
+  if (empty($current_log)) {
+      $current_log = [];
+  }
+
+  // Добавляем новую запись в лог
+  $current_log[] = $log_entry;
+  update_post_meta($post_id, '_voucher_action_log', $current_log);
+}
+
+
+
+
+function add_voucher_action_log_metabox() {
+  add_meta_box(
+      'voucher_action_log_metabox', 
+      'Voucher Actions Log', 
+      'voucher_action_log_metabox_callback', 
+      'voucher', 
+      'normal', 
+      'low'
+  );
+}
+// add_action('add_meta_boxes', 'add_voucher_action_log_metabox');
+
+// Callback функция для отображения лога действий
+function voucher_action_log_metabox_callback($post) {
+  $log_entries = get_post_meta($post->ID, '_voucher_action_log', true);
+
+  echo '<ul>';
+  if (!empty($log_entries)) {
+      foreach ($log_entries as $entry) {
+          echo '<li>' . $entry . '</li>';
+      }
+  } else {
+      echo '<li>No actions logged.</li>';
+  }
+  echo '</ul>';
+}
+
+
+
+/** === VOUCHER LIST: Columns & Cells ===
+ * Columns shown:
+ * - voucher_code
+ * - service_name
+ * - customer
+ * - voucher_date
+ * - expiration_date
+ * - status
+ * - salon_redeemed
+ * - vcp_actions (Redeem button)
+ */
+
+/**
+ * Extract redeem date (YYYY-mm-dd HH:ii:ss) and salon name from _voucher_action_log.
+ * Returns [date_string_or_null, salon_string_or_null]
+ */
+function vcp_extract_redeem_from_log( $post_id ) {
+    $log = get_post_meta( $post_id, '_voucher_action_log', true );
+    if ( empty( $log ) || ! is_array( $log ) ) {
+        return [ null, null ];
+    }
+
+    // Use the last entry (most recent)
+    $last = end( $log );
+
+    $date_str  = null;
+    $salon_str = null;
+
+    // Match a MySQL datetime at the start: "2025-09-05 14:28:18 - ..."
+    if ( preg_match( '/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s*-/', $last, $m ) ) {
+        $date_str = $m[1];
+    }
+
+    // Extract salon name from: "used at the <strong> SALON </strong>"
+    if ( preg_match( '/used at the <strong>\s*(.*?)\s*<\/strong>/i', $last, $m2 ) ) {
+        // Strip any HTML tags just in case
+        $salon_str = wp_strip_all_tags( $m2[1] );
+    }
+
+    return [ $date_str, $salon_str ];
+}
+
+/**
+ * Returns an HTML-formatted amount for the voucher's Grand Total.
+ * - Imported vouchers: uses _amount meta
+ * - Regular vouchers: uses the matched order item total / qty (per-voucher value)
+ */
+function vcp_render_voucher_grand_total( $post_id ) {
+    // Imported?
+    $is_import = get_post_meta($post_id, '_is_import', true);
+    if ($is_import === '1') {
+        $raw = get_post_meta($post_id, '_amount', true);
+        if ($raw === '' || $raw === null) return '—';
+        $num = (float) str_replace(',', '.', $raw);
+        return function_exists('wc_price') ? wc_price($num) : ('$' . number_format($num, 2));
+    }
+
+    // Non-imported: compute from the specific order item this voucher belongs to
+    $order_id   = (int) get_post_meta($post_id, '_order_id', true);
+    $voucher_id = get_post_meta($post_id, '_voucher_id', true);
+    if (!$order_id || !$voucher_id) return '—';
+
+    $order = wc_get_order($order_id);
+    if (!$order) return '—';
+
+    foreach ($order->get_items() as $item) {
+        // Reuse your existing helper to detect the exact line item holding this voucher code
+        if (function_exists('getVoucherIdField')) {
+            $vid = getVoucherIdField($item->get_meta_data(), $voucher_id);
+            if ($vid && (string)$vid === (string)$voucher_id) {
+                $qty   = max(1, (int) $item->get_quantity());
+                $total = (float) $item->get_total(); // WooCommerce line total (excl. tax by default)
+                $unit  = $total / $qty;
+                return function_exists('wc_price') ? wc_price($unit) : ('$' . number_format($unit, 2));
+            }
+        }
+    }
+    return '—';
+}
+
+
+add_filter('manage_voucher_posts_columns', function ($cols) {
+    $new = [];
+    $new['cb']               = $cols['cb'];                  // keep checkbox
+    $new['voucher_code']     = __('Voucher code', 'woocommerce');
+    $new['service_name']     = __('Service name', 'woocommerce');
+    $new['grand_total']     = __('Grand Total', 'woocommerce');
+    $new['customer']         = __('Customer', 'woocommerce');
+    $new['voucher_date']     = __('Voucher date', 'woocommerce');
+    $new['expiration_date']  = __('Expiration date', 'woocommerce');
+    $new['status']           = __('Status', 'woocommerce');
+    $new['salon_redeemed']   = __('Redeemed at/on', 'woocommerce');
+    $new['vcp_actions']      = __('Actions', 'woocommerce');
+    return $new;
+});
+
+add_action('manage_voucher_posts_custom_column', function ($column, $post_id) {
+    switch ($column) {
+        case 'voucher_code':
+            $vid = get_post_meta($post_id, '_voucher_id', true);
+            if ($vid) {
+                $edit = get_edit_post_link($post_id);
+                // Clickable code that opens the voucher details (edit screen)
+                echo $edit
+                    ? '<a href="'.esc_url($edit).'">'.esc_html($vid).'</a>'
+                    : esc_html($vid);
+            } else {
+                echo '—';
+            }
+            break;
+
+        case 'service_name':
+            // Prefer stored name; fallback to product title by ID
+            $name = get_post_meta($post_id, '_product_name', true);
+            if (!$name) {
+                $pid = (int) get_post_meta($post_id, '_product_id', true);
+                if ($pid) $name = get_the_title($pid);
+            }
+            echo $name ? esc_html($name) : '—';
+            break;
+        
+        case 'grand_total':
+            echo vcp_render_voucher_grand_total($post_id);
+            break;
+
+        case 'customer':
+            $cust  = get_post_meta($post_id, '_customer_name', true);
+            $email = get_post_meta($post_id, '_customer_email', true);
+            if ($cust || $email) {
+                echo esc_html($cust ?: '—');
+                if ($email) echo '<br><a href="mailto:'.esc_attr($email).'">'.esc_html($email).'</a>';
+            } else {
+                echo '—';
+            }
+            break;
+
+        case 'voucher_date':
+            echo esc_html(get_post_meta($post_id, '_voucher_date', true) ?: '—');
+            break;
+
+        case 'expiration_date':
+            echo esc_html(get_post_meta($post_id, '_voucher_exp_date', true) ?: '—');
+            break;
+
+        case 'status':
+            $st = get_post_meta($post_id, '_selected_status', true);
+            if ($st === '') $st = 'Active';
+            $cls = 'status-badge ';
+            if (in_array($st, ['Canceled','Refunded','Failed'], true)) $cls .= 'is-canceled';
+            elseif ($st === 'Used') $cls .= 'is-used';
+            else $cls .= 'is-active';
+            echo '<span class="'.esc_attr($cls).'">'.esc_html($st).'</span>';
+            break;
+
+        case 'salon_redeemed':
+            // Primary: get salon from _selected_salon (with legacy mapping)
+            $sel_raw = get_post_meta( $post_id, '_selected_salon', true );
+            $sel     = function_exists('md_map_old_salon_id') ? md_map_old_salon_id( $sel_raw ) : $sel_raw;
+
+            // Date priority: _redeemed_date -> _date-redeem -> parse from _voucher_action_log
+            $redeemed = get_post_meta( $post_id, '_redeemed_date', true );
+            if ( ! $redeemed ) {
+                $redeemed = get_post_meta( $post_id, '_date-redeem', true );
+            }
+
+            $salon_from_log = null;
+            if ( ! $redeemed ) {
+                list( $redeemed_from_log, $salon_from_log ) = vcp_extract_redeem_from_log( $post_id );
+                if ( $redeemed_from_log ) {
+                    $redeemed = $redeemed_from_log;
+                }
+            }
+
+            // Build salon display
+            $out = '—';
+            if ( $sel && $sel !== 'NONE' && $sel !== 'Redeem' ) {
+                if ( is_numeric( $sel ) ) {
+                    $title = get_the_title( (int) $sel );
+                    $out   = $title ? esc_html( $title ) : '#' . (int) $sel;
+                } else {
+                    $out = esc_html( $sel );
+                }
+            } elseif ( $salon_from_log ) {
+                // Fallback to salon parsed from the log entry
+                $out = esc_html( $salon_from_log );
+            }
+
+            // Add date if available
+            if ( $redeemed ) {
+                $ts   = strtotime( $redeemed );
+                $disp = $ts ? date_i18n( 'Y-m-d H:i', $ts ) : $redeemed; // show local admin time
+                $out .= ( $out !== '—' ? '<br>' : '' ) . esc_html( $disp );
+            }
+
+            echo $out;
+            break;
+
+
+        case 'vcp_actions':
+            $status = get_post_meta($post_id, '_selected_status', true);
+            if (!in_array($status, ['Used','Canceled','Refunded','Failed'], true)) {
+                $nonce = wp_create_nonce('vcp_redeem_'.$post_id);
+                echo '<button type="button" class="button button-primary vcp-redeem-btn"
+                          data-postid="'.esc_attr($post_id).'"
+                          data-nonce="'.esc_attr($nonce).'">'.esc_html__('Redeem','woocommerce').'</button>';
+            } else {
+                echo '—';
+            }
+            break;
+    }
+}, 10, 2);
+
+/** Sortable columns (optional) */
+add_filter('manage_edit-voucher_sortable_columns', function ($cols) {
+    $cols['voucher_code']     = 'voucher_code';
+    $cols['service_name']     = 'service_name';
+    $cols['customer']         = 'customer';
+    $cols['status']           = 'status';
+    $cols['voucher_date']     = 'voucher_date';
+    $cols['expiration_date']  = 'expiration_date';
+    return $cols;
+});
+
+/** Sort + Filters (Service/Status) */
+add_action('pre_get_posts', function ($q) {
+    if (!is_admin() || !$q->is_main_query()) return;
+    if ($q->get('post_type') !== 'voucher') return;
+
+    // ----- Sorting -----
+    switch ($q->get('orderby')) {
+        case 'voucher_code':
+            $q->set('meta_key', '_voucher_id');
+            $q->set('orderby',  'meta_value');
+            break;
+        case 'service_name':
+            $q->set('meta_key', '_product_name');
+            $q->set('orderby',  'meta_value');
+            break;
+        case 'customer':
+            $q->set('meta_key', '_customer_name');
+            $q->set('orderby',  'meta_value');
+            break;
+        case 'status':
+            $q->set('meta_key', '_selected_status');
+            $q->set('orderby',  'meta_value');
+            break;
+        case 'voucher_date':
+            // NOTE: _voucher_date is saved as m/d/Y; this is lexicographic.
+            $q->set('meta_key', '_voucher_date');
+            $q->set('orderby',  'meta_value');
+            break;
+        case 'expiration_date':
+            $q->set('meta_key', '_voucher_exp_date');
+            $q->set('orderby',  'meta_value');
+            break;
+    }
+
+    // ----- Filters -----
+    $meta_query = (array) $q->get('meta_query');
+
+    if (!empty($_GET['vcp_service'])) {
+        $service = sanitize_text_field(wp_unslash($_GET['vcp_service']));
+        $meta_query[] = array(
+            'key'   => '_product_name',
+            'value' => $service,
+        );
+    }
+
+    if (!empty($_GET['vcp_status'])) {
+        $status = sanitize_text_field(wp_unslash($_GET['vcp_status']));
+        $meta_query[] = array(
+            'key'   => '_selected_status',
+            'value' => $status,
+        );
+    }
+
+    if (!empty($meta_query)) {
+        $meta_query['relation'] = 'AND';
+        $q->set('meta_query', $meta_query);
+    }
+});
+
+
+/** Tidy CSS + badge styles + widths */
+add_action('admin_head-edit.php', function () {
+    $screen = get_current_screen();
+    if (!$screen || $screen->id !== 'edit-voucher') return;
+    echo '<style>
+        .column-voucher_code{width:160px}
+        .column-service_name{width:240px}
+        .column-customer{width:220px}
+        .column-voucher_date,.column-expiration_date{width:140px}
+        .column-status{width:110px}
+        .column-salon_redeemed{width:260px}
+        .column-vcp_actions{width:120px;text-align:left}
+        .status-badge{display:inline-block;padding:.2em .6em;border-radius:6px;font-weight:600}
+        .status-badge.is-active{background:#e7f7ee;color:#136b3b}
+        .status-badge.is-used{background:#eef2ff;color:#3730a3}
+        .status-badge.is-canceled{background:#fdecea;color:#7f1d1d}
+        .vcp-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;z-index:100000;}
+        .vcp-modal{position:fixed;left:50%;top:20%;transform:translateX(-50%);background:#fff;border:1px solid #ccd0d4;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.2);width:520px;max-width:95vw;display:none;z-index:100001;}
+        .vcp-modal h2{margin:0;padding:12px 16px;border-bottom:1px solid #eee;font-size:16px;}
+        .vcp-modal .inside{padding:16px;}
+        .vcp-modal .row{margin:0 0 12px;}
+        table.wp-list-table.widefat.fixed.striped.table-view-list.posts { table-layout: auto !important; }
+        .actions { padding: 0 20px 20px; }
+        button.button.vcp-cancel { margin-right: 10px; }
+        .column-grand_total{width:120px;text-align:right}
+    </style>';
+});
+
+
+add_action('admin_enqueue_scripts', function () {
+    $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+    // Only on the Vouchers LIST screen
+    if (!$screen || $screen->post_type !== 'voucher' || $screen->base !== 'edit') {
+        return;
+    }
+
+    // Ensure jQuery is present and inject inline JS AFTER it
+    wp_enqueue_script('jquery');
+
+    $js = <<<JS
+    jQuery(function($){
+        // Basic console ping to verify script is loaded:
+        // console.log('[Vouchers] list JS loaded');
+
+        var \$backdrop = $('.vcp-modal-backdrop');
+        var \$modal    = $('.vcp-modal');
+        var currentId  = null;
+        var currentNonce = null;
+
+        function openModal(id, nonce){
+            currentId = id;
+            currentNonce = nonce;
+            if (!\$backdrop.length || !\$modal.length){
+                // If HTML hasn't been printed for some reason
+                // console.warn('[Vouchers] modal HTML not found');
+                return;
+            }
+            \$backdrop.show();
+            \$modal.show();
+
+            // Default date = now (local)
+            var now = new Date();
+            var pad = n=> (n<10?'0':'')+n;
+            var local = now.getFullYear()+'-'+pad(now.getMonth()+1)+'-'+pad(now.getDate())+' '+pad(now.getHours())+':'+pad(now.getMinutes());
+            $('#vcp_redeem_date').val(local);
+        }
+        function closeModal(){
+            currentId = null; currentNonce = null;
+            \$backdrop.hide(); \$modal.hide();
+        }
+
+        // Event delegation so it works on dynamically-rendered rows
+        $(document).on('click', '.vcp-redeem-btn', function(e){
+            e.preventDefault();
+            openModal($(this).data('postid'), $(this).data('nonce'));
+        });
+        $(document).on('click', '.vcp-cancel', function(e){ e.preventDefault(); closeModal(); });
+        $(document).on('click', '.vcp-modal-backdrop', closeModal);
+
+        $(document).on('submit', '#vcp-redeem-form', function(e){
+            e.preventDefault();
+            var salonId = $('#vcp_salon').val();
+            var when    = $('#vcp_redeem_date').val();
+            if(!salonId){ alert('Please choose a salon.'); return; }
+            if(!when){ alert('Please set a redeemed date/time.'); return; }
+
+            var row = $('#post-'+currentId);
+            var btn = row.find('.vcp-redeem-btn');
+            btn.prop('disabled', true).text('Redeeming…');
+
+            $.post(ajaxurl, {
+                action: 'vcp_redeem_voucher',
+                post_id: currentId,
+                salon_id: salonId,
+                redeemed_at: when,
+                security: currentNonce
+            }).done(function(resp){
+                if(resp && resp.success){
+                    row.find('td.column-status').html(resp.data.status_html);
+                    row.find('td.column-salon_redeemed').text(resp.data.salon_redeemed);
+                    row.find('td.column-vcp_actions').html('—');
+                    closeModal();
+                }else{
+                    alert((resp && resp.data) ? resp.data : 'Error');
+                    btn.prop('disabled', false).text('Redeem');
+                }
+            }).fail(function(){
+                alert('Network error');
+                btn.prop('disabled', false).text('Redeem');
+            });
+        });
+    });
+    JS;
+
+    // Attach inline JS after jQuery
+    wp_add_inline_script('jquery', $js, 'after');
+});
+
+add_action('admin_footer-edit.php', function(){
+    $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+    if (!$screen || $screen->post_type !== 'voucher' || $screen->base !== 'edit') return;
+
+    // Build salon dropdown options
+    $salons = get_posts([
+        'post_type'      => 'salon',
+        'posts_per_page' => -1,
+        'orderby'        => 'title',
+        'order'          => 'ASC',
+        'fields'         => 'ids',
+    ]);
+
+    echo '<div class="vcp-modal-backdrop"></div>';
+    echo '<div class="vcp-modal" role="dialog" aria-modal="true" aria-label="Redeem voucher">';
+    echo '<h2>Redeem voucher</h2>';
+    echo '<div class="inside"><form id="vcp-redeem-form">';
+    echo '<div class="row"><label for="vcp_salon"><strong>Salon</strong></label><br>';
+    echo '<select id="vcp_salon" style="min-width:260px">';
+    echo '<option value="">— Select a salon —</option>';
+    foreach ($salons as $sid) {
+        $title = get_the_title($sid);
+        echo '<option value="'.esc_attr($sid).'">'.esc_html($title).'</option>';
+    }
+    echo '</select></div>';
+
+    echo '<div class="row"><label for="vcp_redeem_date"><strong>Redeemed date/time</strong></label><br>';
+    echo '<input type="text" id="vcp_redeem_date" placeholder="YYYY-MM-DD HH:MM" style="min-width:260px" />';
+    echo '<p class="description">Defaults to your current local time; you can adjust.</p>';
+    echo '</div>';
+
+    echo '</form></div>';
+    echo '<div class="actions">';
+    echo '<button class="button vcp-cancel">Cancel</button>';
+    echo '<button class="button button-primary" form="vcp-redeem-form">Redeem</button>';
+    echo '</div>';
+    echo '</div>';
+});
+
+
+/** Vouchers list: Service + Status filters */
+add_action('restrict_manage_posts', function () {
+    $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+    if (!$screen || $screen->post_type !== 'voucher' || $screen->base !== 'edit') return;
+
+    $current_service = isset($_GET['vcp_service']) ? sanitize_text_field(wp_unslash($_GET['vcp_service'])) : '';
+    $current_status  = isset($_GET['vcp_status'])  ? sanitize_text_field(wp_unslash($_GET['vcp_status']))  : '';
+
+    global $wpdb;
+    // Get distinct service names from voucher meta (_product_name)
+    $services = $wpdb->get_col($wpdb->prepare("
+        SELECT DISTINCT pm.meta_value
+        FROM {$wpdb->postmeta} pm
+        INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+        WHERE pm.meta_key = %s
+          AND p.post_type = %s
+          AND p.post_status IN ('publish','pending','draft','future','private')
+        ORDER BY pm.meta_value ASC
+        LIMIT 200
+    ", '_product_name', 'voucher'));
+
+    // Status choices
+    $statuses = array('Active','Used','Canceled','Refunded','Failed');
+
+    // Service dropdown
+    echo '<label class="screen-reader-text" for="vcp_service">Service</label>';
+    echo '<select name="vcp_service" id="vcp_service">';
+    echo '<option value="">All services</option>';
+    if ($services) {
+        foreach ($services as $s) {
+            if ($s === '') continue;
+            printf(
+                '<option value="%s"%s>%s</option>',
+                esc_attr($s),
+                selected($current_service, $s, false),
+                esc_html($s)
+            );
+        }
+    }
+    echo '</select>';
+
+    // Status dropdown
+    echo '<label class="screen-reader-text" for="vcp_status">Status</label>';
+    echo '<select name="vcp_status" id="vcp_status">';
+    echo '<option value="">All statuses</option>';
+    foreach ($statuses as $st) {
+        printf(
+            '<option value="%s"%s>%s</option>',
+            esc_attr($st),
+            selected($current_status, $st, false),
+            esc_html($st)
+        );
+    }
+    echo '</select>';
+});
+
+
+/** AJAX: mark voucher as Used + save salon & redeemed date (admin list popup) */
+if (!function_exists('vcp_redeem_voucher_handler')) {
+    function vcp_redeem_voucher_handler() {
+        // Basic caps check – editors/shop managers can usually edit vouchers; adjust if needed
+        $post_id     = isset($_POST['post_id']) ? (int) $_POST['post_id'] : 0;
+        if (!$post_id || !current_user_can('edit_post', $post_id)) {
+            wp_send_json_error('Permission denied');
+        }
+
+        $salon_id    = isset($_POST['salon_id']) ? (int) $_POST['salon_id'] : 0;
+        $redeemed_at = isset($_POST['redeemed_at']) ? sanitize_text_field(wp_unslash($_POST['redeemed_at'])) : '';
+        $nonce       = isset($_POST['security']) ? $_POST['security'] : '';
+
+        if (!wp_verify_nonce($nonce, 'vcp_redeem_'.$post_id)) {
+            wp_send_json_error('Security check failed');
+        }
+        if (!$salon_id) {
+            wp_send_json_error('Salon is required');
+        }
+
+        // Normalize date to Y-m-d H:i:s (store GMT)
+        $t = strtotime($redeemed_at);
+        if (!$t) {
+            $t = current_time('timestamp');
+        }
+        $store_gmt = gmdate('Y-m-d H:i:s', $t - ( get_option('gmt_offset') * HOUR_IN_SECONDS ));
+
+        $current_status = get_post_meta($post_id, '_selected_status', true);
+        if (in_array($current_status, ['Used','Canceled','Refunded','Failed'], true)) {
+            wp_send_json_error('Voucher already finalized ('.$current_status.').');
+        }
+
+        // Save canonical meta
+        update_post_meta($post_id, '_prev_selected_status', $current_status ?: 'Active');
+        update_post_meta($post_id, '_selected_status', 'Used');
+        update_post_meta($post_id, '_selected_salon', $salon_id);
+        update_post_meta($post_id, '_redeemed_date', $store_gmt);
+
+        // Also set legacy meta for your existing UI
+        update_post_meta($post_id, '_is_redeem', '1');
+        update_post_meta($post_id, '_date-redeem', $store_gmt);
+
+        // Append to your log
+        if (function_exists('log_voucher_action')) {
+            $title = get_the_title($salon_id);
+            log_voucher_action($post_id, 'Used', $title ?: ('#'.$salon_id));
+        }
+
+        // Response fragments for row update
+        $salon_title = get_the_title($salon_id) ?: ('#'.$salon_id);
+        $status_html = '<span class="status-badge is-used">Used</span>';
+        $salon_redeemed_text = $salon_title.' — '.date_i18n('Y-m-d H:i', $t);
+
+        wp_send_json_success(array(
+            'status_html'    => $status_html,
+            'salon_redeemed' => $salon_redeemed_text,
+        ));
+    }
+}
+add_action('wp_ajax_vcp_redeem_voucher', 'vcp_redeem_voucher_handler');

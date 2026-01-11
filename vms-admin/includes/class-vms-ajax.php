@@ -9,6 +9,8 @@ add_action('wp_ajax_vms_fetch_voucher_details',
 [__CLASS__,'fetch_voucher_details']);
 add_action('wp_ajax_vms_redeem_voucher', [__CLASS__,'redeem_voucher']);
 add_action('wp_ajax_vms_void_voucher', [__CLASS__,'void_voucher']);
+add_action('wp_ajax_vms_sync_vouchers', [__CLASS__,'sync_vouchers']);
+add_action('wp_ajax_vms_sync_salons', [__CLASS__,'sync_salons']);
 }
 protected static function check_nonce(){
   check_ajax_referer('vms_admin_nonce','nonce');
@@ -75,6 +77,378 @@ if (!$code) wp_send_json_error('missing code', 400);
 $data = API::void($code, $notes);
 if (is_wp_error($data)) wp_send_json_error($data->get_error_data(), 400);
 wp_send_json_success($data);
+}
+
+public static function sync_vouchers(){
+  self::check_nonce();
+  $offset = isset($_POST['offset']) ? absint($_POST['offset']) : 0;
+  $limit = isset($_POST['limit']) ? absint($_POST['limit']) : 25;
+  if ($limit <= 0) $limit = 25;
+  if ($limit > 100) $limit = 100;
+
+  $query = new \WP_Query([
+    'post_type' => 'voucher',
+    'post_status' => 'publish',
+    'posts_per_page' => $limit,
+    'offset' => $offset,
+    'orderby' => 'ID',
+    'order' => 'ASC',
+    'fields' => 'ids',
+  ]);
+
+  $total = (int) $query->found_posts;
+  $created = 0;
+  $updated = 0;
+  $code_updated = 0;
+  $skipped = 0;
+  $errors = [];
+
+  $salon_map = self::get_salon_map();
+  $vms_salons = self::fetch_vms_salons();
+
+  foreach ($query->posts as $post_id) {
+    $code = sanitize_text_field(get_post_meta($post_id, '_voucher_id', true));
+    if (!$code) {
+      $skipped++;
+      continue;
+    }
+
+    $payload = self::build_legacy_payload($post_id, $salon_map, $vms_salons);
+    if (is_wp_error($payload)) {
+      $errors[] = "Payload failed for {$code}: ".$payload->get_error_message();
+      $skipped++;
+      continue;
+    }
+
+    $res = API::request('POST', 'vouchers/sync', $payload);
+    if (is_wp_error($res)) {
+      $errors[] = "Sync failed for {$code}";
+      $skipped++;
+      continue;
+    }
+
+    if (!empty($res['created'])) $created++;
+    if (!empty($res['updated'])) $updated++;
+    if (!empty($res['codeUpdated'])) $code_updated++;
+  }
+
+  self::set_salon_map($salon_map);
+
+  $processed = count($query->posts);
+  $next_offset = $offset + $processed;
+  $done = $next_offset >= $total || $processed === 0;
+
+  if (count($errors) > 5) $errors = array_slice($errors, 0, 5);
+
+  wp_send_json_success([
+    'done' => $done,
+    'next_offset' => $next_offset,
+    'total' => $total,
+    'processed' => $processed,
+    'created' => $created,
+    'updated' => $updated,
+    'code_updated' => $code_updated,
+    'skipped' => $skipped,
+    'errors' => $errors,
+  ]);
+}
+
+public static function sync_salons(){
+  self::check_nonce();
+  $created = 0;
+  $updated = 0;
+  $skipped = 0;
+  $errors = [];
+
+  $salon_posts = get_posts([
+    'post_type' => 'salon',
+    'posts_per_page' => -1,
+    'orderby' => 'ID',
+    'order' => 'ASC',
+    'fields' => 'ids',
+  ]);
+
+  $map = self::get_salon_map();
+  $vms_salons = self::fetch_vms_salons();
+  $lookup = self::build_salon_lookup($vms_salons);
+
+  foreach ($salon_posts as $sid) {
+    $name = get_the_title($sid);
+    if (!$name) {
+      $skipped++;
+      continue;
+    }
+    $key = strtolower($name);
+    if (isset($map[$sid]) && (int) $map[$sid] > 0) {
+      $skipped++;
+      continue;
+    }
+    if (isset($lookup[$key])) {
+      $map[$sid] = (int) $lookup[$key]['id'];
+      $updated++;
+      continue;
+    }
+
+    $created_res = API::request('POST', 'salons', ['name' => $name]);
+    if (is_wp_error($created_res) || empty($created_res['id'])) {
+      $errors[] = "Salon create failed for {$name}";
+      $skipped++;
+      continue;
+    }
+    $map[$sid] = (int) $created_res['id'];
+    $created++;
+    $lookup[$key] = ['id' => (int) $created_res['id'], 'name' => $name];
+  }
+
+  self::set_salon_map($map);
+
+  wp_send_json_success([
+    'created' => $created,
+    'updated' => $updated,
+    'skipped' => $skipped,
+    'errors' => $errors,
+  ]);
+}
+
+protected static function normalize_legacy_status($status){
+  $raw = strtolower(trim((string) $status));
+  if ($raw === '' || $raw === 'active' || $raw === 'available') return 'AVAILABLE';
+  if (in_array($raw, ['redeemed', 'used'], true)) return 'REDEEMED';
+  if (in_array($raw, ['void', 'voided', 'canceled', 'cancelled', 'refunded', 'failed'], true)) return 'VOID';
+  return 'AVAILABLE';
+}
+
+protected static function build_legacy_payload($post_id, &$salon_map = [], &$vms_salons = []){
+  $code = sanitize_text_field(get_post_meta($post_id, '_voucher_id', true));
+  if (!$code) return new \WP_Error('vms_sync_missing_code', 'Missing voucher code');
+
+  $order_id = absint(get_post_meta($post_id, '_order_id', true));
+  $order_number = sanitize_text_field(get_post_meta($post_id, '_order_number', true));
+  $product_id = get_post_meta($post_id, '_product_id', true);
+  $product_id = $product_id !== '' ? (string) $product_id : '';
+  $product_name = sanitize_text_field(get_post_meta($post_id, '_product_name', true));
+  $amount = (float) get_post_meta($post_id, '_amount', true);
+  $currency = 'CAD';
+  $customer_name = sanitize_text_field(get_post_meta($post_id, '_customer_name', true));
+  $customer_email = sanitize_email(get_post_meta($post_id, '_customer_email', true));
+  $phone = '';
+  $legacy_status = get_post_meta($post_id, '_selected_status', true);
+  if (!$legacy_status) $legacy_status = get_post_meta($post_id, '_prev_selected_status', true);
+  $target_status = self::normalize_legacy_status($legacy_status);
+  [$first_name, $last_name] = self::split_customer_name($customer_name);
+
+  if ($order_id && class_exists('WooCommerce') && function_exists('wc_get_order')) {
+    $order = wc_get_order($order_id);
+    if ($order) {
+      $order_number = $order->get_order_number() ?: $order_number;
+      $currency = $order->get_currency() ?: $currency;
+      $phone = sanitize_text_field($order->get_billing_phone());
+      if (!$customer_email) $customer_email = $order->get_billing_email();
+      if (!$first_name && !$last_name) {
+        $first_name = $order->get_billing_first_name();
+        $last_name = $order->get_billing_last_name();
+      }
+
+      $item = null;
+      foreach ($order->get_items() as $order_item) {
+        if ($product_id && (int) $order_item->get_product_id() === (int) $product_id) {
+          $item = $order_item;
+          break;
+        }
+        if ($item === null) $item = $order_item;
+      }
+
+      if ($item) {
+        if (!$product_name) $product_name = $item->get_name();
+        if (!$product_id) $product_id = (string) $item->get_product_id();
+        if ($amount <= 0) {
+          $qty = max(1, (int) $item->get_quantity());
+          $unit_total = $qty > 0 ? ((float) $item->get_total() / $qty) : (float) $item->get_total();
+          $amount = $unit_total;
+        }
+      }
+    }
+  }
+
+  $multiplier = (float) get_option(Settings::OPT_MULTIPLIER, '1.0');
+  if ($multiplier <= 0) $multiplier = 1.0;
+  $value = round($amount * $multiplier, 2);
+
+  $site_url = home_url();
+  $site_host = wp_parse_url($site_url, PHP_URL_HOST);
+  $source_label = $site_host ? $site_host : $site_url;
+  $external_id = $order_id ? sprintf('%s:%s', $source_label, $order_id) : 'legacy:'.$post_id;
+  $order_id_str = $order_number ?: ($order_id ? (string) $order_id : (string) $post_id);
+  $title = $product_name ?: 'Legacy Voucher';
+
+  $payload = [
+    'code' => $code,
+    'title' => $title,
+    'source' => $site_url,
+    'order_external_id' => $external_id,
+    'order_id' => (string) $order_id_str,
+    'order_total' => $value,
+    'order_products' => [[
+      'product_id' => $product_id,
+      'product_name' => $product_name ?: $title,
+      'product_price' => $value,
+    ]],
+    'face_value' => $value,
+    'currency' => $currency,
+    'customer' => [
+      'email' => $customer_email,
+      'phone' => $phone,
+      'first_name' => $first_name,
+      'last_name' => $last_name,
+    ],
+    'status' => $target_status,
+  ];
+
+  $expires_raw = sanitize_text_field(get_post_meta($post_id, '_voucher_exp_date', true));
+  $expires_at = self::normalize_date($expires_raw);
+  if ($expires_at) $payload['expires_at'] = $expires_at;
+
+  if ($target_status === 'REDEEMED') {
+    $redeemed_raw = get_post_meta($post_id, '_redeemed_date', true);
+    if (!$redeemed_raw) $redeemed_raw = get_post_meta($post_id, '_date-redeem', true);
+    if (!$redeemed_raw) {
+      $log = get_post_meta($post_id, '_voucher_action_log', true);
+      $redeemed_raw = self::extract_redeem_date_from_log($log);
+    }
+    $redeemed_at = self::normalize_datetime($redeemed_raw);
+    if ($redeemed_at) $payload['redeemed_at'] = $redeemed_at;
+
+    $sel_raw = get_post_meta($post_id, '_selected_salon', true);
+    if (!$sel_raw) {
+      $log = get_post_meta($post_id, '_voucher_action_log', true);
+      $sel_raw = self::extract_redeem_salon_from_log($log);
+    }
+    $salon_id = self::resolve_vms_salon_id($sel_raw, $salon_map, $vms_salons);
+    if ($salon_id) $payload['redeemed_salon_id'] = $salon_id;
+  }
+
+  return $payload;
+}
+
+protected static function get_salon_map(){
+  $map = get_option('vms_salon_map', []);
+  return is_array($map) ? $map : [];
+}
+
+protected static function set_salon_map($map){
+  update_option('vms_salon_map', is_array($map) ? $map : []);
+}
+
+protected static function fetch_vms_salons(){
+  $salons = API::salons();
+  if (is_wp_error($salons)) return [];
+  if (is_array($salons) && array_key_exists('data', $salons)) return is_array($salons['data']) ? $salons['data'] : [];
+  return is_array($salons) ? $salons : [];
+}
+
+protected static function build_salon_lookup($salons){
+  $lookup = [];
+  foreach ($salons as $salon) {
+    if (!is_array($salon) || empty($salon['name']) || empty($salon['id'])) continue;
+    $lookup[strtolower($salon['name'])] = $salon;
+  }
+  return $lookup;
+}
+
+protected static function resolve_vms_salon_id($sel_raw, &$map, &$vms_salons){
+  if ($sel_raw === '' || $sel_raw === null) return 0;
+  if (is_string($sel_raw) && in_array($sel_raw, ['Redeem','NONE'], true)) return 0;
+  $lookup = self::build_salon_lookup($vms_salons);
+
+  if (is_numeric($sel_raw)) {
+    $mapped_wp = self::map_legacy_salon_id((int) $sel_raw);
+    if (isset($map[$mapped_wp])) return (int) $map[$mapped_wp];
+    $name = get_the_title((int) $mapped_wp);
+    if ($name) {
+      $key = strtolower($name);
+      if (isset($lookup[$key])) {
+        $map[$mapped_wp] = (int) $lookup[$key]['id'];
+        return (int) $lookup[$key]['id'];
+      }
+      $created = API::request('POST', 'salons', ['name' => $name]);
+      if (!is_wp_error($created) && !empty($created['id'])) {
+        $map[$mapped_wp] = (int) $created['id'];
+        $vms_salons[] = ['id' => (int) $created['id'], 'name' => $name];
+        return (int) $created['id'];
+      }
+    }
+    return 0;
+  }
+
+  $name = sanitize_text_field($sel_raw);
+  if ($name === '') return 0;
+  $key = strtolower($name);
+  if (isset($lookup[$key])) return (int) $lookup[$key]['id'];
+  $created = API::request('POST', 'salons', ['name' => $name]);
+  if (!is_wp_error($created) && !empty($created['id'])) {
+    $vms_salons[] = ['id' => (int) $created['id'], 'name' => $name];
+    return (int) $created['id'];
+  }
+  return 0;
+}
+
+protected static function map_legacy_salon_id($val){
+  $map = [46796=>2365,43028=>2364,43027=>2363,8817=>2362,8816=>2361,8813=>2360,8812=>2359,7896=>2358,7895=>2357];
+  if (is_numeric($val)) {
+    $ival = (int) $val;
+    return $map[$ival] ?? $ival;
+  }
+  return $val;
+}
+
+protected static function extract_redeem_date_from_log($log){
+  if (empty($log)) return '';
+  $entries = is_array($log) ? $log : [$log];
+  foreach ($entries as $entry) {
+    if (!is_string($entry)) continue;
+    if (preg_match('/(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/', $entry, $m)) return $m[1];
+    if (preg_match('/(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})/', $entry, $m)) return $m[1];
+  }
+  return '';
+}
+
+protected static function extract_redeem_salon_from_log($log){
+  if (empty($log)) return '';
+  $entries = is_array($log) ? $log : [$log];
+  foreach ($entries as $entry) {
+    if (!is_string($entry)) continue;
+    if (preg_match('/<strong>\s*([^<]+)\s*<\/strong>/i', $entry, $m)) {
+      return wp_strip_all_tags($m[1]);
+    }
+  }
+  return '';
+}
+
+protected static function normalize_datetime($raw){
+  $raw = trim((string) $raw);
+  if ($raw === '') return '';
+  $ts = strtotime($raw);
+  if ($ts) return gmdate('Y-m-d H:i:s', $ts);
+  return '';
+}
+
+protected static function split_customer_name($name){
+  $clean = preg_replace('/\s+/', ' ', trim((string) $name));
+  if ($clean === '') return ['', ''];
+  $parts = explode(' ', $clean);
+  $first = array_shift($parts);
+  $last = implode(' ', $parts);
+  return [$first, $last];
+}
+
+protected static function normalize_date($raw){
+  $raw = trim((string) $raw);
+  if ($raw === '') return '';
+  $dt = \DateTime::createFromFormat('m/d/Y', $raw);
+  if ($dt instanceof \DateTime) return $dt->format('Y-m-d');
+  $ts = strtotime($raw);
+  if ($ts) return gmdate('Y-m-d', $ts);
+  return '';
 }
 
 protected static function augment_with_wc_order($data){

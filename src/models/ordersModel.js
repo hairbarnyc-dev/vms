@@ -75,6 +75,16 @@ export const getOrderWithProducts = async (orderId) => {
   return { ...orders[0], products }
 }
 
+export const getByExternalId = async ({ source = 'custom', external_id }, conn = null) => {
+  if (!external_id) return null
+  const db = getDb(conn)
+  const [rows] = await db.query(
+    'SELECT id, external_id, order_id, source FROM orders WHERE source=? AND external_id=? AND is_deleted=0 LIMIT 1',
+    [source, external_id]
+  )
+  return rows[0] || null
+}
+
 export const updateOrderById = async (orderId, payload = {}, conn = null) => {
   if (!orderId) return
   const db = getDb(conn)

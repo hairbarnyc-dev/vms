@@ -4,6 +4,7 @@ import * as V from '../../controllers/vouchers.controller.js'
 
 const r = Router()
 r.post('/', requireAuth([1, 2]), V.create)
+r.post('/sync', requireAuth([1, 2]), V.syncFromWp)
 r.get('/', requireAuth([1, 2]), V.list)
 r.get('/code/:code', requireAuth([1, 2, 3]), V.detail)
 r.put('/:id', requireAuth([1, 2]), V.update)
