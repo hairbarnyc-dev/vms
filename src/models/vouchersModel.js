@@ -20,9 +20,14 @@ export const createVoucher = async (data, conn = null) => {
 export const getByCode = async (code, conn = null) => {
   const db = conn || pool
   const [rows] = await db.query(
-    `SELECT v.*, s.name AS salon_name
+    `SELECT v.*, s.name AS salon_name,
+            c.first_name AS customer_first_name,
+            c.last_name AS customer_last_name,
+            c.email AS customer_email,
+            c.phone AS customer_phone
      FROM vouchers v
      LEFT JOIN salons s ON s.id=v.salon_id
+     LEFT JOIN customers c ON c.id=v.customer_id
      WHERE v.code=? AND v.is_deleted=0
      LIMIT 1`,
     [code]
@@ -43,9 +48,14 @@ export const getByOrderId = async (order_id, conn = null) => {
 }
 export const getById = async (id) => {
   const [rows] = await pool.query(
-    `SELECT v.*, s.name AS salon_name
+    `SELECT v.*, s.name AS salon_name,
+            c.first_name AS customer_first_name,
+            c.last_name AS customer_last_name,
+            c.email AS customer_email,
+            c.phone AS customer_phone
      FROM vouchers v
      LEFT JOIN salons s ON s.id=v.salon_id
+     LEFT JOIN customers c ON c.id=v.customer_id
      WHERE v.id=? AND v.is_deleted=0`,
     [id]
   )
@@ -72,6 +82,10 @@ export const list = async ({ page = 1, pageSize = 20, q, status, salon_id, date_
 
   const [rows] = await pool.query(
     `SELECT v.*, COALESCE(rs.name, s.name) AS salon_name,
+            c.first_name AS customer_first_name,
+            c.last_name AS customer_last_name,
+            c.email AS customer_email,
+            c.phone AS customer_phone,
             o.order_id AS order_number,
             o.external_id AS order_external_id,
             o.source AS order_source
@@ -79,6 +93,7 @@ export const list = async ({ page = 1, pageSize = 20, q, status, salon_id, date_
      LEFT JOIN salons s ON s.id=v.salon_id
      LEFT JOIN redemptions r ON r.voucher_id=v.id AND r.is_deleted=0
      LEFT JOIN salons rs ON rs.id=r.salon_id
+     LEFT JOIN customers c ON c.id=v.customer_id
      LEFT JOIN orders o ON o.id=v.order_id
      WHERE ${where.join(' AND ')}
      ORDER BY v.created_at DESC
@@ -94,6 +109,10 @@ export const listWithTotal = async ({ page = 1, pageSize = 20, q, status, salon_
 
   const [rows] = await pool.query(
     `SELECT v.*, COALESCE(rs.name, s.name) AS salon_name,
+            c.first_name AS customer_first_name,
+            c.last_name AS customer_last_name,
+            c.email AS customer_email,
+            c.phone AS customer_phone,
             o.order_id AS order_number,
             o.external_id AS order_external_id,
             o.source AS order_source
@@ -101,6 +120,7 @@ export const listWithTotal = async ({ page = 1, pageSize = 20, q, status, salon_
      LEFT JOIN salons s ON s.id=v.salon_id
      LEFT JOIN redemptions r ON r.voucher_id=v.id AND r.is_deleted=0
      LEFT JOIN salons rs ON rs.id=r.salon_id
+     LEFT JOIN customers c ON c.id=v.customer_id
      LEFT JOIN orders o ON o.id=v.order_id
      WHERE ${where.join(' AND ')}
      ORDER BY v.created_at DESC

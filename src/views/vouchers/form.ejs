@@ -58,6 +58,25 @@
       <hr>
       <h5>Order Details</h5>
     </div>
+    <div class="col-12">
+      <div class="card shadow-sm mb-3">
+        <div class="card-header"><strong>User Details</strong></div>
+        <div class="card-body row g-3">
+          <div class="col-md-4">
+            <label class="form-label">Name</label>
+            <input class="form-control" value="<%= [row.customer_first_name, row.customer_last_name].filter(Boolean).join(' ') %>" readonly>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Email</label>
+            <input class="form-control" value="<%= row.customer_email || '' %>" readonly>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Phone</label>
+            <input class="form-control" value="<%= row.customer_phone || '' %>" readonly>
+          </div>
+        </div>
+      </div>
+    </div>
     <div class="col-md-4">
       <label class="form-label">Order Number / External ID</label>
       <input name="order_external_id" class="form-control" value="<%= order?.order_id || order?.external_id || '' %>" placeholder="#1234 or wc_1234">

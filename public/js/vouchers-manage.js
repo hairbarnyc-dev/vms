@@ -23,17 +23,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const renderRows = (rows) => {
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">No vouchers found.</td></tr>'
+      tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">No vouchers found.</td></tr>'
       return
     }
     const html = rows
       .map((r) => {
         const statusClass = r.status === 'AVAILABLE' ? 'success' : r.status === 'REDEEMED' ? 'secondary' : 'danger'
         const created = r.created_at ? new Date(r.created_at).toLocaleString() : '-'
+        const name = [r.customer_first_name, r.customer_last_name].filter(Boolean).join(' ')
+        const email = r.customer_email || ''
+        const phone = r.customer_phone || ''
+        const userHtml = `${name || '-'}<br>${email || ''}${phone ? `<br>${phone}` : ''}`
         return `
           <tr>
             <td>${r.code || '-'}</td>
             <td>${r.title || '-'}</td>
+            <td>${userHtml}</td>
             <td>${r.salon_name || '-'}</td>
             <td>${r.order_source || '-'}</td>
             <td>${r.order_number || r.order_external_id || '-'}</td>
@@ -83,7 +88,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const loadPage = async (page) => {
     const query = buildQuery(page)
     const url = `/api/v1/vouchers?${query}`
-    tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">Loading…</td></tr>'
+    tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">Loading…</td></tr>'
     try {
       const res = await fetch(url, { headers: { Accept: 'application/json' } })
       if (!res.ok) throw new Error('Request failed')
@@ -105,7 +110,7 @@ document.addEventListener('DOMContentLoaded', function () {
         })
       }
     } catch (err) {
-      tbody.innerHTML = '<tr><td colspan="9" class="text-center text-danger">Failed to load vouchers.</td></tr>'
+      tbody.innerHTML = '<tr><td colspan="10" class="text-center text-danger">Failed to load vouchers.</td></tr>'
       countEl.textContent = 'Total: 0'
     }
   }
