@@ -235,6 +235,12 @@ protected static function build_legacy_payload($post_id, &$salon_map = [], &$vms
   $legacy_status = get_post_meta($post_id, '_selected_status', true);
   if (!$legacy_status) $legacy_status = get_post_meta($post_id, '_prev_selected_status', true);
   $target_status = self::normalize_legacy_status($legacy_status);
+  $is_redeem = get_post_meta($post_id, '_is_redeem', true);
+  $redeem_flag = $is_redeem === '1' || $is_redeem === 1 || $is_redeem === true;
+  if (!$redeem_flag) {
+    $redeem_flag = (bool) get_post_meta($post_id, '_date-redeem', true);
+  }
+  if ($redeem_flag) $target_status = 'REDEEMED';
   [$first_name, $last_name] = self::split_customer_name($customer_name);
 
   if ($order_id && class_exists('WooCommerce') && function_exists('wc_get_order')) {
