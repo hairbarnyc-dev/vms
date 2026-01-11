@@ -47,23 +47,33 @@ export const getById = async (id) => {
   return rows[0]
 }
 
-export const list = async ({ page = 1, pageSize = 20, q, status, salon_id, date_from, date_to }) => {
-  const offset = (page - 1) * pageSize
+const buildWhere = ({ q, status, salon_id, date_from, date_to } = {}) => {
   const params = []
   const where = ['v.is_deleted=0']
   if (q) { where.push('(v.code LIKE ? OR v.title LIKE ?)'); params.push(`%${q}%`, `%${q}%`) }
   if (status) { where.push('v.status=?'); params.push(status) }
-  if (salon_id) { where.push('v.salon_id=?'); params.push(Number(salon_id)) }
+  if (salon_id) {
+    where.push('(v.salon_id=? OR r.salon_id=?)')
+    params.push(Number(salon_id), Number(salon_id))
+  }
   if (date_from) { where.push('v.created_at>=?'); params.push(new Date(date_from)) }
   if (date_to) { where.push('v.created_at<?'); params.push(new Date(date_to)) }
+  return { where, params }
+}
+
+export const list = async ({ page = 1, pageSize = 20, q, status, salon_id, date_from, date_to }) => {
+  const offset = (page - 1) * pageSize
+  const { where, params } = buildWhere({ q, status, salon_id, date_from, date_to })
 
   const [rows] = await pool.query(
-    `SELECT v.*, s.name AS salon_name,
+    `SELECT v.*, COALESCE(rs.name, s.name) AS salon_name,
             o.order_id AS order_number,
             o.external_id AS order_external_id,
             o.source AS order_source
      FROM vouchers v
      LEFT JOIN salons s ON s.id=v.salon_id
+     LEFT JOIN redemptions r ON r.voucher_id=v.id AND r.is_deleted=0
+     LEFT JOIN salons rs ON rs.id=r.salon_id
      LEFT JOIN orders o ON o.id=v.order_id
      WHERE ${where.join(' AND ')}
      ORDER BY v.created_at DESC
@@ -71,6 +81,36 @@ export const list = async ({ page = 1, pageSize = 20, q, status, salon_id, date_
     [...params, pageSize, offset]
   )
   return rows
+}
+
+export const listWithTotal = async ({ page = 1, pageSize = 20, q, status, salon_id, date_from, date_to }) => {
+  const offset = (page - 1) * pageSize
+  const { where, params } = buildWhere({ q, status, salon_id, date_from, date_to })
+
+  const [rows] = await pool.query(
+    `SELECT v.*, COALESCE(rs.name, s.name) AS salon_name,
+            o.order_id AS order_number,
+            o.external_id AS order_external_id,
+            o.source AS order_source
+     FROM vouchers v
+     LEFT JOIN salons s ON s.id=v.salon_id
+     LEFT JOIN redemptions r ON r.voucher_id=v.id AND r.is_deleted=0
+     LEFT JOIN salons rs ON rs.id=r.salon_id
+     LEFT JOIN orders o ON o.id=v.order_id
+     WHERE ${where.join(' AND ')}
+     ORDER BY v.created_at DESC
+     LIMIT ? OFFSET ?`,
+    [...params, pageSize, offset]
+  )
+
+  const [countRows] = await pool.query(
+    `SELECT COUNT(*) AS total
+     FROM vouchers v
+     LEFT JOIN redemptions r ON r.voucher_id=v.id AND r.is_deleted=0
+     WHERE ${where.join(' AND ')}`,
+    params
+  )
+  return { rows, total: countRows[0]?.total || 0 }
 }
 
 /** NEW: All non-redeemed vouchers for a specific salon */

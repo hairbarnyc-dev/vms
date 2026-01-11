@@ -48,8 +48,23 @@
     </div>
   </form>
 
+  <div class="d-flex justify-content-between align-items-center mb-2" id="vouchers-meta">
+    <div class="text-muted" id="vouchers-count">Total: 0</div>
+    <div class="d-flex gap-2 align-items-center">
+      <label class="text-muted">Rows</label>
+      <select id="vouchers-page-size" class="form-select form-select-sm" style="width:auto;">
+        <option value="25">25</option>
+        <option value="50" selected>50</option>
+        <option value="100">100</option>
+      </select>
+      <nav>
+        <ul class="pagination pagination-sm mb-0" id="vouchers-pagination"></ul>
+      </nav>
+    </div>
+  </div>
+
   <div class="table-responsive">
-    <table class="table table-striped table-bordered">
+    <table class="table table-striped table-bordered" id="vouchers-table" data-page="1">
       <thead><tr>
         <th>Code</th>
         <th>Title</th>
@@ -61,37 +76,7 @@
         <th>Created</th>
         <th>Actions</th>
       </tr></thead>
-      <tbody>
-        <% rows.forEach(r => { %>
-          <tr>
-            <td><%= r.code %></td>
-            <td><%= r.title %></td>
-            <td><%= r.salon_name || '-' %></td>
-            <td><%= r.order_source || '-' %></td>
-            <td><%= r.order_number || r.order_external_id || '-' %></td>
-            <td><%= r.face_value %> <%= r.currency %></td>
-            <td>
-              <span class="badge bg-<%= r.status==='AVAILABLE'?'success':(r.status==='REDEEMED'?'secondary':'danger') %>">
-                <%= r.status %>
-              </span>
-            </td>
-            <td><%= new Date(r.created_at).toLocaleString() %></td>
-            <td class="text-nowrap">
-              <button class="btn btn-sm btn-success js-open-redeem"
-                      data-code="<%= r.code %>" data-title="<%= r.title %>" data-salon-id="<%= r.salon_id || '' %>">
-                <i class="fa-solid fa-check"></i>
-              </button>
-              <a class="btn btn-sm btn-outline-primary" href="/vouchers/<%= r.id %>/edit"><i class="fa-solid fa-pen"></i></a>
-              <form method="post" action="/vouchers/<%= r.id %>/delete" style="display:inline" onsubmit="return confirm('Delete this voucher?')">
-                <button class="btn btn-sm btn-outline-danger"><i class="fa-solid fa-trash"></i></button>
-              </form>
-            </td>
-          </tr>
-        <% }) %>
-        <% if (!rows.length) { %>
-          <tr><td colspan="9" class="text-center text-muted">No vouchers found.</td></tr>
-        <% } %>
-      </tbody>
+      <tbody></tbody>
     </table>
   </div>
 </div>
@@ -129,4 +114,5 @@
 </div>
 <script src="/vendor/bootstrap/bootstrap.bundle.min.js" defer></script>
 <script src="/js/vouchers.js" defer></script>
+<script src="/js/vouchers-manage.js" defer></script>
 <%- include('../partials/foot') %>

@@ -281,8 +281,8 @@ export const syncFromWp = async (req, res, next) => {
 
 export const list = async (req, res, next) => {
   try {
-    const { page, pageSize, q, status, salon_id, date_from, date_to } = req.query
-    const rows = await Vouchers.list({
+    const { page, pageSize, q, status, salon_id, date_from, date_to, include_total } = req.query
+    const filters = {
       page: Number(page) || 1,
       pageSize: Number(pageSize) || 20,
       q: q || null,
@@ -290,7 +290,13 @@ export const list = async (req, res, next) => {
       salon_id: salon_id || null,
       date_from: date_from || null,
       date_to: date_to || null
-    })
+    }
+    const wantTotal = include_total === '1' || include_total === 'true'
+    if (wantTotal) {
+      const result = await Vouchers.listWithTotal(filters)
+      return res.json({ data: result.rows, total: result.total })
+    }
+    const rows = await Vouchers.list(filters)
     res.json(rows)
   } catch (e) { next(e) }
 }
