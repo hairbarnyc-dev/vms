@@ -33,6 +33,42 @@ const ensureCustomer = async (conn, customer) => {
   return ins.insertId
 }
 
+const ensureCustomerForSync = async (conn, customer) => {
+  if (!customer || (!customer.email && !customer.phone)) return null
+  const email = customer.email || null
+  const phone = customer.phone || null
+
+  let row = null
+  if (email) {
+    const [rows] = await conn.query('SELECT id FROM customers WHERE email=? AND is_deleted=0 LIMIT 1', [email])
+    row = rows[0] || null
+  }
+  if (!row && phone) {
+    const [rows] = await conn.query('SELECT id FROM customers WHERE phone=? AND is_deleted=0 LIMIT 1', [phone])
+    row = rows[0] || null
+  }
+
+  if (row) {
+    const fields = []
+    const vals = []
+    if (email) { fields.push('email=?'); vals.push(email) }
+    if (phone) { fields.push('phone=?'); vals.push(phone) }
+    if (customer.first_name) { fields.push('first_name=?'); vals.push(customer.first_name) }
+    if (customer.last_name) { fields.push('last_name=?'); vals.push(customer.last_name) }
+    if (fields.length) {
+      vals.push(row.id)
+      await conn.query(`UPDATE customers SET ${fields.join(', ')} WHERE id=? AND is_deleted=0`, vals)
+    }
+    return row.id
+  }
+
+  const [ins] = await conn.query(
+    'INSERT INTO customers (email, phone, first_name, last_name) VALUES (?,?,?,?)',
+    [email, phone, customer.first_name || null, customer.last_name || null]
+  )
+  return ins.insertId
+}
+
 const normalizeOrderPayload = (body = {}) => {
   const order = body.order || {}
   const rawExternal =
@@ -175,7 +211,7 @@ const syncVoucherRecord = async (payload, req) => {
   const conn = await pool.getConnection()
   try {
     await conn.beginTransaction()
-    const customer_id = await ensureCustomer(conn, payload.customer)
+    const customer_id = await ensureCustomerForSync(conn, payload.customer)
     const orderData = normalizeOrderPayload(payload)
     const order_id = await Orders.upsertOrder(
       {
@@ -203,6 +239,7 @@ const syncVoucherRecord = async (payload, req) => {
       now.getMilliseconds()
     )
     const expiresAt = payload.expires_at ? new Date(payload.expires_at) : defaultExpiry
+    const createdAt = payload.created_at ? new Date(payload.created_at) : null
     const code = (payload.code || '').trim() || genCode()
     const status = payload.status || undefined
 
@@ -223,6 +260,7 @@ const syncVoucherRecord = async (payload, req) => {
           face_value: orderData.face_value,
           currency: orderData.currency,
           expires_at: expiresAt,
+          created_at: createdAt,
         },
         conn
       )
@@ -236,6 +274,7 @@ const syncVoucherRecord = async (payload, req) => {
         currency: orderData.currency,
         expires_at: expiresAt,
       }
+      if (createdAt) updatePayload.created_at = createdAt
       if (payload.salon_id !== undefined) updatePayload.salon_id = payload.salon_id || null
       if (status) updatePayload.status = status
       await Vouchers.update(existing.voucher.id, updatePayload, conn)

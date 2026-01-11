@@ -314,6 +314,14 @@ protected static function build_legacy_payload($post_id, &$salon_map = [], &$vms
   $expires_at = self::normalize_date($expires_raw);
   if ($expires_at) $payload['expires_at'] = $expires_at;
 
+  $created_raw = sanitize_text_field(get_post_meta($post_id, '_voucher_date', true));
+  if (!$created_raw) {
+    $post = get_post($post_id);
+    $created_raw = $post ? $post->post_date : '';
+  }
+  $created_at = self::normalize_datetime($created_raw);
+  if ($created_at) $payload['created_at'] = $created_at;
+
   if ($target_status === 'REDEEMED') {
     $redeemed_raw = get_post_meta($post_id, '_redeemed_date', true);
     if (!$redeemed_raw) $redeemed_raw = get_post_meta($post_id, '_date-redeem', true);
