@@ -317,19 +317,20 @@ protected static function build_legacy_payload($post_id, &$salon_map = [], &$vms
   if ($target_status === 'REDEEMED') {
     $redeemed_raw = get_post_meta($post_id, '_redeemed_date', true);
     if (!$redeemed_raw) $redeemed_raw = get_post_meta($post_id, '_date-redeem', true);
-    if (!$redeemed_raw) {
-      $log = get_post_meta($post_id, '_voucher_action_log', true);
-      $redeemed_raw = self::extract_redeem_date_from_log($log);
-    }
+    $log = get_post_meta($post_id, '_voucher_action_log', true);
+    if (!$redeemed_raw) $redeemed_raw = self::extract_redeem_date_from_log($log);
     $redeemed_at = self::normalize_datetime($redeemed_raw);
     if ($redeemed_at) $payload['redeemed_at'] = $redeemed_at;
 
     $sel_raw = get_post_meta($post_id, '_selected_salon', true);
-    if (!$sel_raw) {
-      $log = get_post_meta($post_id, '_voucher_action_log', true);
-      $sel_raw = self::extract_redeem_salon_from_log($log);
-    }
+    if (!$sel_raw) $sel_raw = self::extract_redeem_salon_from_log($log);
     $salon_id = self::resolve_vms_salon_id($sel_raw, $salon_map, $vms_salons);
+    if (!$salon_id && $log) {
+      $fallback_name = self::extract_redeem_salon_from_log($log);
+      if ($fallback_name) {
+        $salon_id = self::resolve_vms_salon_id($fallback_name, $salon_map, $vms_salons);
+      }
+    }
     if ($salon_id) $payload['redeemed_salon_id'] = $salon_id;
   }
 
@@ -356,7 +357,7 @@ protected static function build_salon_lookup($salons){
   $lookup = [];
   foreach ($salons as $salon) {
     if (!is_array($salon) || empty($salon['name']) || empty($salon['id'])) continue;
-    $lookup[strtolower($salon['name'])] = $salon;
+    $lookup[self::normalize_salon_key($salon['name'])] = $salon;
   }
   return $lookup;
 }
@@ -371,7 +372,7 @@ protected static function resolve_vms_salon_id($sel_raw, &$map, &$vms_salons){
     if (isset($map[$mapped_wp])) return (int) $map[$mapped_wp];
     $name = get_the_title((int) $mapped_wp);
     if ($name) {
-      $key = strtolower($name);
+      $key = self::normalize_salon_key($name);
       if (isset($lookup[$key])) {
         $map[$mapped_wp] = (int) $lookup[$key]['id'];
         return (int) $lookup[$key]['id'];
@@ -388,7 +389,7 @@ protected static function resolve_vms_salon_id($sel_raw, &$map, &$vms_salons){
 
   $name = sanitize_text_field($sel_raw);
   if ($name === '') return 0;
-  $key = strtolower($name);
+  $key = self::normalize_salon_key($name);
   if (isset($lookup[$key])) return (int) $lookup[$key]['id'];
   $created = API::request('POST', 'salons', ['name' => $name]);
   if (!is_wp_error($created) && !empty($created['id'])) {
@@ -396,6 +397,12 @@ protected static function resolve_vms_salon_id($sel_raw, &$map, &$vms_salons){
     return (int) $created['id'];
   }
   return 0;
+}
+
+protected static function normalize_salon_key($name){
+  $name = strtolower(trim((string) $name));
+  $name = preg_replace('/\s+/', ' ', $name);
+  return $name;
 }
 
 protected static function map_legacy_salon_id($val){
