@@ -1,0 +1,895 @@
+<?php
+/*
+Plugin Name: Vouchers Custom Plugin
+Description: Generates vouchers (PDF) for service products after successful payment and exposes a My Account endpoint to download them.
+Version: 1.1.0
+Author: EngiNerds
+*/
+
+if ( ! defined( 'ABSPATH' ) ) exit;
+
+require_once $_SERVER['DOCUMENT_ROOT'].'/lib/dompdf/autoload.inc.php';
+require      $_SERVER['DOCUMENT_ROOT'].'/lib/vendor/autoload.php';
+
+use Dompdf\Dompdf;
+use Picqer\Barcode\BarcodeGeneratorPNG;
+
+// ---- Paths / helpers ----
+if ( ! defined('VCP_VOUCHERS_DIR') ) {
+    define('VCP_VOUCHERS_DIR', trailingslashit($_SERVER['DOCUMENT_ROOT']).'vouchers/');
+}
+if ( ! defined('VCP_BARCODES_DIR') ) {
+    define('VCP_BARCODES_DIR', trailingslashit($_SERVER['DOCUMENT_ROOT']).'barcodes/');
+}
+
+function vcp_ensure_dir( $dir ) {
+    if ( ! is_dir( $dir ) ) {
+        wp_mkdir_p( $dir );
+    }
+}
+
+// -------------------------
+// Custom Post Types
+// -------------------------
+
+// Salons (private CPT)
+function custom_register_salon_post_type() {
+  $labels = array(
+    'name'               => _x( 'Salon', 'post type general name', 'textdomain' ),
+    'singular_name'      => _x( 'Salon', 'post type singular name', 'textdomain' ),
+    'menu_name'          => _x( 'Salons', 'admin menu', 'textdomain' ),
+    'name_admin_bar'     => _x( 'Salon', 'add new on admin bar', 'textdomain' ),
+    'add_new'            => _x( 'Add New', 'salon', 'textdomain' ),
+    'add_new_item'       => __( 'Add New Salon', 'textdomain' ),
+    'new_item'           => __( 'New Salon', 'textdomain' ),
+    'edit_item'          => __( 'Edit Salon', 'textdomain' ),
+    'view_item'          => __( 'View Salon', 'textdomain' ),
+    'all_items'          => __( 'All Salons', 'textdomain' ),
+    'search_items'       => __( 'Search Salons', 'textdomain' ),
+    'parent_item_colon'  => __( 'Parent Salon:', 'textdomain' ),
+    'not_found'          => __( 'Salon not found.', 'textdomain' ),
+    'not_found_in_trash' => __( 'Salons not found in trash.', 'textdomain' )
+  );
+
+  $args = array(
+      'labels'             => $labels,
+      'description'        => __( 'Description', 'textdomain' ),
+      'public'             => false,
+      'publicly_queryable' => false,
+      'show_ui'            => true,
+      'show_in_menu'       => true,
+      'query_var'          => true,
+      'capability_type'    => 'post',
+      'has_archive'        => false,
+      'hierarchical'       => false,
+      'menu_position'      => null,
+      'supports'           => array( 'title', 'editor' )
+  );
+
+  register_post_type( 'salon', $args );
+}
+add_action( 'init', 'custom_register_salon_post_type' );
+
+// Vouchers (private CPT)
+function custom_register_voucher_post_type() {
+  $labels = array(
+    'name'               => _x( 'Vouchers', 'post type general name', 'textdomain' ),
+    'singular_name'      => _x( 'Voucher', 'post type singular name', 'textdomain' ),
+    'menu_name'          => _x( 'Vouchers', 'admin menu', 'textdomain' ),
+    'name_admin_bar'     => _x( 'Voucher', 'add new on admin bar', 'textdomain' ),
+    'add_new'            => _x( 'Add New', 'voucher', 'textdomain' ),
+    'add_new_item'       => __( 'Add New Voucher', 'textdomain' ),
+    'new_item'           => __( 'New Voucher', 'textdomain' ),
+    'edit_item'          => __( 'Edit Voucher', 'textdomain' ),
+    'view_item'          => __( 'View Voucher', 'textdomain' ),
+    'all_items'          => __( 'All Vouchers', 'textdomain' ),
+    'search_items'       => __( 'Search Vouchers', 'textdomain' ),
+    'parent_item_colon'  => __( 'Parent Voucher:', 'textdomain' ),
+    'not_found'          => __( 'Voucher not found.', 'textdomain' ),
+    'not_found_in_trash' => __( 'Vouchers not found in trash.', 'textdomain' )
+  );
+
+  $args = array(
+      'labels'             => $labels,
+      'description'        => __( 'Description', 'textdomain' ),
+      'public'             => false,
+      'publicly_queryable' => false,
+      'show_ui'            => true,
+      'show_in_menu'       => true,
+      'query_var'          => true,
+      'capability_type'    => 'post',
+      'has_archive'        => false,
+      'hierarchical'       => false,
+      'menu_position'      => null,
+      'supports'           => array( 'title' )
+  );
+
+  register_post_type( 'voucher', $args );
+}
+add_action( 'init', 'custom_register_voucher_post_type' );
+
+// -------------------------
+// Simple meta displays (readonly)
+// -------------------------
+
+function display_voucher_order_id_meta_box( $post ) {
+  $order_id = get_post_meta( $post->ID, '_order_id', true );
+  ?>
+  <label for="order_id_field">Order ID:</label>
+  <input type="text" id="order_id_field" name="order_id_field" value="<?php echo esc_attr( $order_id ); ?>" readonly>
+  <?php
+}
+
+function display_voucher_id_meta_box( $post ) {
+  $voucher_id = get_post_meta( $post->ID, '_voucher_id', true );
+  ?>
+  <label for="voucher_id_field">Voucher ID:</label>
+  <input type="text" id="voucher_id_field" name="voucher_id_field" value="<?php echo esc_attr( $voucher_id ); ?>" readonly>
+  <?php
+}
+
+function save_voucher_order_id( $post_id ) {
+    if ( isset( $_POST['order_id_field'] ) ) {
+        update_post_meta( $post_id, '_order_id', sanitize_text_field( $_POST['order_id_field'] ) );
+    }
+    if ( isset( $_POST['voucher_id_field'] ) ) {
+      update_post_meta( $post_id, '_voucher_id', sanitize_text_field( $_POST['voucher_id_field'] ) );
+    }
+}
+// add_action( 'save_post_voucher', 'save_voucher_order_id' ); // enable if you add the metaboxes
+
+// -------------------------
+// Voucher PDF generation
+// -------------------------
+
+function generate_order_html_file(
+  $order_id,
+  $voucher_id,
+  $order_number,
+  $customer_first_name,
+  $customer_last_name,
+  $customer_email,
+  $product_sku,
+  $product_name,
+  $product_image_url,
+  $description,
+  $product_price,
+  $short_description,
+  $expiry_date_formatted,
+  $addons_string,
+  $return_file,
+  $barcode_code,
+  $barcode_png // base64 (no prefix), vertical rotated
+) {
+  vcp_ensure_dir( VCP_VOUCHERS_DIR );
+
+  // Convert product image to base64 (optional)
+  $product_image_base64 = '';
+  if ( $product_image_url ) {
+      $img = @file_get_contents( $product_image_url );
+      if ( $img !== false ) {
+        $product_image_base64 = 'data:image/png;base64,' . base64_encode( $img );
+      }
+  }
+
+  // ACF Options (optional)
+  $LOGO = function_exists('get_field') ? get_field('vaucher_logo', 'option') : '';
+  $LOGObase64 = '';
+  if ( $LOGO ) {
+    $logoImageContent = @file_get_contents($LOGO);
+    if ( $logoImageContent !== false ) {
+      $LOGObase64 = 'data:image/png;base64,' . base64_encode($logoImageContent);
+    }
+  }
+
+  $LEFTCOL   = function_exists('get_field') ? get_field('v_left_col', 'option') : null;
+  $CENTERCOL = function_exists('get_field') ? get_field('v_center_col', 'option') : null;
+  $RIGHTCOL  = function_exists('get_field') ? get_field('v_right_col', 'option') : null;
+  $QR        = function_exists('get_field') ? get_field('qr_code', 'option') : '';
+  $QRbase64  = '';
+  if ( $QR ) {
+    $imageContent = @file_get_contents($QR);
+    if ( $imageContent !== false ) {
+      $QRbase64 = 'data:image/png;base64,' . base64_encode($imageContent);
+    }
+  }
+
+  $HELP_TEXT = function_exists('get_field') ? get_field('help_section_text', 'option') : null;
+  $WEEKDAYS  = function_exists('get_field') ? get_field('weekdays', 'option') : '';
+  $NAME      = function_exists('get_field') ? get_field('voucher_name', 'option') : '';
+
+  $template_path = plugin_dir_path(__FILE__) . 'voucher_template.html';
+  if ( ! file_exists( $template_path ) ) {
+    error_log('[Vouchers] Missing voucher_template.html in plugin folder.');
+    return null;
+  }
+
+  $template_content = file_get_contents( $template_path );
+  $repl = array(
+    '{{order_number}}'      => $order_number,
+    '{{customer_name}}'     => trim("$customer_first_name $customer_last_name"),
+    '{{customer_email}}'    => $customer_email,
+    '{{product_image}}'     => $product_image_base64,
+    '{{voucher_number}}'    => $voucher_id,
+    '{{product_sku}}'       => $product_sku,
+    '{{product_name}}'      => $product_name,
+    '{{product_description}}'=> $short_description,
+    '{{product_price}}'     => $product_price,
+    '{{expiry_date}}'       => $expiry_date_formatted,
+    '{{barcode}}'           => 'data:image/png;base64,' . $barcode_png,
+    '{{barcode_code}}'      => $barcode_code,
+    '{{LOGO}}'              => $LOGObase64,
+    '{{NAME}}'              => $NAME,
+    '{{LC_TITLE}}'          => isset($LEFTCOL['title'])   ? $LEFTCOL['title']   : '',
+    '{{LC_TEXT}}'           => isset($LEFTCOL['content']) ? $LEFTCOL['content'] : '',
+    '{{CC_TITLE}}'          => isset($CENTERCOL['title'])   ? $CENTERCOL['title']   : '',
+    '{{CC_TEXT}}'           => isset($CENTERCOL['content']) ? $CENTERCOL['content'] : '',
+    '{{RC_TITLE}}'          => isset($RIGHTCOL['title'])   ? $RIGHTCOL['title']   : '',
+    '{{RC_TEXT}}'           => isset($RIGHTCOL['content']) ? $RIGHTCOL['content'] : '',
+    '{{QR}}'                => $QRbase64,
+    '{{WEEKDAYS}}'          => $WEEKDAYS,
+    '{{HELP_TITLE}}'        => is_array($HELP_TEXT) && isset($HELP_TEXT['title']) ? $HELP_TEXT['title'] : '',
+    '{{HELP_TEXT}}'         => is_array($HELP_TEXT) && isset($HELP_TEXT['text'])  ? $HELP_TEXT['text']  : '',
+    '{{ADDONS}}'            => ! empty($addons_string) ? 'ADD-ONS: ' . $addons_string : '',
+  );
+
+  $template_content = strtr( $template_content, $repl );
+
+  $dompdf = new Dompdf();
+  $dompdf->loadHtml( $template_content );
+  $dompdf->setPaper('letter', 'portrait');
+  $dompdf->render();
+  $pdf_content = $dompdf->output();
+
+  $pdf_filename = "voucher_{$voucher_id}.pdf";
+  file_put_contents( VCP_VOUCHERS_DIR . $pdf_filename, $pdf_content );
+
+  if ( $return_file ) {
+    $file_url = home_url('/vouchers/') . $pdf_filename;
+    error_log('[Vouchers] FILE_URL ' . $file_url);
+    return $file_url;
+  }
+  return null;
+}
+
+// -------------------------
+// Attach voucher to email after processing
+// -------------------------
+
+add_filter( 'woocommerce_email_attachments', 'attach_voucher_to_email', 10, 3 );
+function attach_voucher_to_email( $attachments, $email_id, $order ) {
+    if ( $email_id !== 'customer_processing_order' ) {
+        return $attachments;
+    }
+
+    if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
+        return $attachments;
+    }
+
+    $order_number = $order->get_order_number();
+    $vouchers_directory = VCP_VOUCHERS_DIR;
+
+    $files = @scandir( $vouchers_directory );
+    if ( ! is_array( $files ) ) {
+        return $attachments;
+    }
+
+    foreach ( $files as $file ) {
+        // We save as voucher_{VOUCHERID}.pdf where VOUCHERID ends with "-{order_number}", so this works.
+        if ( strpos( $file, (string) $order_number ) !== false ) {
+            $file_path = $vouchers_directory . $file;
+            if ( file_exists( $file_path ) ) {
+                $attachments[] = $file_path;
+            }
+        }
+    }
+    return $attachments;
+}
+
+// -------------------------
+// Voucher generation (AFTER PAYMENT ONLY)
+// -------------------------
+
+// IMPORTANT: Do NOT use 'woocommerce_checkout_order_processed' (too early).
+add_action( 'woocommerce_payment_complete',        'custom_create_vouchers', 10, 1 );
+add_action( 'woocommerce_order_status_processing', 'custom_create_vouchers', 10, 1 );
+add_action( 'woocommerce_order_status_completed',  'custom_create_vouchers', 10, 1 );
+
+function custom_create_vouchers( $order_id ) {
+    $order = wc_get_order( $order_id );
+    if ( ! $order ) return;
+
+    // Only for paid states
+    if ( ! $order->has_status( array( 'processing', 'completed' ) ) ) {
+        return;
+    }
+
+    // Idempotency guard – run once per order
+    if ( 'yes' === $order->get_meta( '_vouchers_generated' ) ) {
+        return;
+    }
+
+    vcp_ensure_dir( VCP_VOUCHERS_DIR );
+    vcp_ensure_dir( VCP_BARCODES_DIR );
+
+    $created_any = false;
+    $items = $order->get_items( 'line_item' );
+    $order_number = $order->get_order_number();
+    $current_status = $order->get_status();
+    $customer_email = $order->get_billing_email();
+    $customer_first_name = $order->get_billing_first_name();
+    $customer_last_name  = $order->get_billing_last_name();
+
+    $order_date = $order->get_date_created();
+    $order_date_formatted = $order_date ? $order_date->format('m/d/Y') : date('m/d/Y');
+
+    $EXPIRYDATE_VALUE = function_exists('get_field') ? get_field('expiry_date', 'option') : '';
+    $expiry_date = $order_date ? clone $order_date : new DateTime();
+    $expiry_date->modify( $EXPIRYDATE_VALUE ? $EXPIRYDATE_VALUE : '+1 year' );
+    $expiry_date_formatted = $expiry_date->format('m/d/Y');
+
+    $services_term = term_exists( 37, 'product_cat' );
+    $services_term_id = is_array( $services_term ) ? (int) $services_term['term_id'] : 0;
+
+    // helpers
+    if ( ! function_exists('vcp_generateRandomCode') ) {
+      function vcp_generateRandomCode() {
+        $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        $first = '';
+        for ( $i = 0; $i < 6; $i++ ) {
+            $first .= $chars[ rand(0, strlen($chars) - 1) ];
+        }
+        $second = rand(10000, 99999);
+        return $first . '-' . $second;
+      }
+    }
+    if ( ! function_exists('vcp_generateRandomCode8') ) {
+      function vcp_generateRandomCode8() {
+        $characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        $randomCode = '';
+        for ( $i = 0; $i < 8; $i++ ) {
+            $randomCode .= $characters[ rand(0, strlen($characters) - 1) ];
+        }
+        return $randomCode;
+      }
+    }
+
+    foreach ( $items as $item_id => $item ) {
+        // Skip if already has a voucher for this line item
+        $existing_voucher_id = wc_get_order_item_meta( $item_id, '_voucher_id' );
+        if ( ! empty( $existing_voucher_id ) ) {
+            continue;
+        }
+
+        $product = $item->get_product();
+        if ( ! $product ) {
+            continue;
+        }
+
+        // Only for “service” products – child of term 37 (and include direct matches)
+        $is_service_product = false;
+        $product_categories = $product->get_category_ids();
+        if ( $services_term_id ) {
+            foreach ( $product_categories as $cat_id ) {
+                if ( (int)$cat_id === $services_term_id || term_is_ancestor_of( $services_term_id, $cat_id, 'product_cat' ) ) {
+                    $is_service_product = true;
+                    break;
+                }
+            }
+        }
+
+        if ( ! $is_service_product ) {
+            continue;
+        }
+
+        $qty                = (int) $item->get_quantity();
+        $product_id         = $product->get_id();
+        $product_name       = $product->get_name();
+        $product_sku        = $product->get_sku();
+        $short_description  = $product->get_short_description();
+        $product_description= get_post_field( 'post_content', $product_id );
+        $quantity           = max(1, $qty);
+        $product_price      = $quantity > 0 ? $item->get_total() / $quantity : 0;
+        $product_price      = number_format( (float)$product_price, 2, '.', '' );
+
+        $product_image_id   = $product->get_image_id();
+        $product_image_url  = wp_get_attachment_image_url( $product_image_id, 'full' );
+
+        // collect ADD-ONS meta (if present)
+        $addons_list = array();
+        foreach ( $item->get_meta_data() as $meta_data ) {
+            if ( 'ADD-ONS' === $meta_data->key ) {
+                $addons_list[] = $meta_data->value;
+            }
+        }
+        $addons_string = implode(', ', $addons_list);
+
+        // Generate one voucher per ordered qty
+        for ( $i = 0; $i < $qty; $i++ ) {
+            $vid = vcp_generateRandomCode8() . '-' . $order_number; // includes order number
+
+            // Barcode (vertical base64 and raw png)
+            $barcode_code = vcp_generateRandomCode();
+            $generator = new BarcodeGeneratorPNG();
+            $png = $generator->getBarcode($barcode_code, $generator::TYPE_CODE_128, 2, 69);
+
+            // Save raw png
+            @file_put_contents( VCP_BARCODES_DIR . $barcode_code . '.png', $png );
+
+            // Rotate to vertical + base64
+            $source  = @imagecreatefromstring($png);
+            $base64Image = '';
+            if ( $source ) {
+                $white   = imagecolorallocate($source, 255, 255, 255);
+                $rotated = imagerotate($source, 90, $white);
+                ob_start();
+                imagesavealpha($rotated, true);
+                imagepng($rotated);
+                $imageData = ob_get_contents();
+                ob_end_clean();
+                $base64Image = base64_encode($imageData);
+                imagedestroy($source);
+                imagedestroy($rotated);
+            }
+
+            // Create voucher post
+            $voucher_content  = "Order Number: $order_number\n";
+            $voucher_content .= "Customer: $customer_first_name $customer_last_name\n";
+            $voucher_content .= "Email: $customer_email\n";
+            $voucher_content .= "SKU: $product_sku\n\n";
+            $voucher_content .= "Voucher for: $product_name\n";
+
+            $voucher_post = array(
+                'post_title'   => $product_name . ' Voucher' . ' | ' . '  №' . $vid,
+                'post_content' => $voucher_content,
+                'post_type'    => 'voucher',
+                'post_status'  => 'publish'
+            );
+
+            $voucher_post_id = wp_insert_post( $voucher_post );
+
+            // Store meta
+            update_post_meta( $voucher_post_id, '_order_id',            $order_id );
+            update_post_meta( $voucher_post_id, '_order_number',        $order_number  );
+            update_post_meta( $voucher_post_id, ' _previous_order_status', $current_status );
+            update_post_meta( $voucher_post_id, '_voucher_id',          $vid );
+            update_post_meta( $voucher_post_id, '_voucher_date',        $order_date_formatted );
+            update_post_meta( $voucher_post_id, '_voucher_exp_date',    $expiry_date_formatted );
+            update_post_meta( $voucher_post_id, '_customer_name',       $customer_first_name . ' ' . $customer_last_name );
+            update_post_meta( $voucher_post_id, '_customer_email',      $customer_email );
+            update_post_meta( $voucher_post_id, '_product_id',          $product_id );
+            update_post_meta( $voucher_post_id, '_product_name',        $product_name );
+            update_post_meta( $voucher_post_id, '_voucher_barcode_code',$barcode_code );
+            update_post_meta( $voucher_post_id, '_voucher_barcode',     base64_encode($png) );
+            update_post_meta( $voucher_post_id, '_voucher_barcode_vertical', $base64Image );
+            update_post_meta( $voucher_post_id, '_selected_status',     'Active' );
+            update_post_meta( $voucher_post_id, '_prev_selected_status','Active' );
+
+            // Attach ID to order item
+            wc_add_order_item_meta( $item_id, '_voucher_id', $vid );
+
+            // Build PDF
+            generate_order_html_file(
+              $order_id, $vid, $order_number, $customer_first_name, $customer_last_name,
+              $customer_email, $product_sku, $product_name, $product_image_url,
+              $product_description, $product_price, $short_description,
+              $expiry_date_formatted, $addons_string, null, $barcode_code, $base64Image
+            );
+
+            $created_any = true;
+        }
+    }
+
+    if ( $created_any ) {
+        $order->update_meta_data( '_vouchers_generated', 'yes' );
+        $order->save();
+    }
+}
+
+// -------------------------
+// Sync voucher status when order status changes
+// -------------------------
+
+function update_voucher_status_based_on_order_status( $order_id ) {
+  $vouchers = get_posts([
+      'post_type'   => 'voucher',
+      'numberposts' => -1,
+      'meta_key'    => '_order_id',
+      'meta_value'  => $order_id,
+  ]);
+
+  $order = wc_get_order( $order_id );
+  $order_status = $order ? $order->get_status() : '';
+
+  if ( $vouchers ) {
+      foreach ( $vouchers as $voucher ) {
+          $current_date = current_time('Y-m-d H:i:s');
+          $voucher_content = get_post_field('post_content', $voucher->ID );
+
+          switch ( $order_status ) {
+              case 'cancelled':
+                  $voucher_content .= "\n\nStatus: Canceled\nCancellation Date: $current_date";
+                  update_post_meta($voucher->ID, '_selected_status', 'Canceled');
+                  break;
+              case 'refunded':
+                  $voucher_content .= "\n\nStatus: Refunded\nRefunded Date: $current_date";
+                  update_post_meta($voucher->ID, '_selected_status', 'Refunded');
+                  break;
+              case 'processing':
+                  $voucher_content .= "\n\nStatus: Processing\nProcessing Date: $current_date";
+                  update_post_meta($voucher->ID, '_selected_status', 'Active');
+                  break;
+              case 'failed':
+                  $voucher_content .= "\n\nStatus: Failed\nFailed Date: $current_date";
+                  update_post_meta($voucher->ID, '_selected_status', 'Failed');
+                  break;
+          }
+
+          wp_update_post([
+              'ID'           => $voucher->ID,
+              'post_content' => $voucher_content,
+          ]);
+      }
+  }
+}
+add_action('woocommerce_order_status_cancelled',  'update_voucher_status_based_on_order_status');
+add_action('woocommerce_order_status_refunded',   'update_voucher_status_based_on_order_status');
+add_action('woocommerce_order_status_processing', 'update_voucher_status_based_on_order_status');
+add_action('woocommerce_order_status_failed',     'update_voucher_status_based_on_order_status');
+
+// -------------------------
+// My Account > Vouchers endpoint
+// -------------------------
+
+add_filter ( 'woocommerce_account_menu_items', 'log_vouchers_link', 25 );
+function log_vouchers_link( $menu_links ){
+	$menu_links = array_slice( $menu_links, 0, 5, true ) + array( 'vouchers' => 'Vouchers' ) + array_slice( $menu_links, 5, NULL, true );
+	return $menu_links;
+}
+
+function vouchers_add_endpoint() {
+    add_rewrite_endpoint( 'vouchers', EP_ROOT | EP_PAGES );
+}
+add_action( 'init', 'vouchers_add_endpoint' );
+
+function vouchers_activate() {
+    vouchers_add_endpoint();
+    flush_rewrite_rules();
+}
+register_activation_hook( __FILE__, 'vouchers_activate' );
+
+function vouchers_deactivate() {
+    flush_rewrite_rules();
+}
+register_deactivation_hook( __FILE__, 'vouchers_deactivate' );
+
+add_action( 'woocommerce_account_vouchers_endpoint', 'vouchers_page_content', 25 );
+function vouchers_page_content() {
+  $user_id = get_current_user_id();
+  if ( ! $user_id ) return;
+
+  $user_info  = get_userdata( $user_id );
+  $user_email = $user_info ? $user_info->user_email : '';
+
+  $voucher_query = new WP_Query(array(
+    'post_type'      => 'voucher',
+    'posts_per_page' => -1,
+    'meta_query'     => array(
+        array(
+            'key'   => '_customer_email',
+            'value' => $user_email,
+        ),
+    ),
+  ));
+
+  if ( $voucher_query->have_posts() ) {
+      echo '<table class="woocommerce-orders-table woocommerce-MyAccount-orders shop_table shop_table_responsive my_account_orders account-orders-table">';
+      echo '<tr><th class="woocommerce-orders-table__header" style="padding-left:8px;">Order ID</th><th class="woocommerce-orders-table__header" style="padding-left:8px;">Voucher ID</th><th class="woocommerce-orders-table__header" style="padding-left:8px;">Date</th><th class="woocommerce-orders-table__header" style="padding-left:8px;">Status</th><th class="woocommerce-orders-table__header" style="padding-left:8px;">&nbsp;</th></tr>';
+
+      while ( $voucher_query->have_posts() ) {
+          $voucher_query->the_post();
+          $voucher_id = get_the_ID();
+          $order_id   = get_post_meta( $voucher_id, '_order_id', true );
+          $order      = wc_get_order( $order_id );
+
+          if ( $order && (int) $order->get_customer_id() === (int) $user_id ) {
+              $voucher_date   = get_the_date( 'F j, Y', $voucher_id );
+              $voucher_status = get_post_meta( $voucher_id, '_selected_status', true );
+              $custom_voucher_id = get_post_meta( $voucher_id, '_voucher_id', true );
+
+              $pdf_url = '';
+              $pdf_path = VCP_VOUCHERS_DIR . "voucher_{$custom_voucher_id}.pdf";
+              if ( file_exists( $pdf_path ) ) {
+                  $pdf_url = home_url( '/vouchers/' . "voucher_{$custom_voucher_id}.pdf" );
+              }
+
+              echo '<tr class="woocommerce-orders-table__row">';
+              echo '<td class="woocommerce-orders-table__cell" style="padding-left:8px;">#' . esc_html( $order_id ) . '</td>';
+              if ( $pdf_url ) {
+                echo '<td class="woocommerce-orders-table__cell" style="padding-left:8px;"><a target="_blank" href="' . esc_url($pdf_url) . '">#' . esc_html( $custom_voucher_id ) . '</a></td>';
+              } else {
+                echo '<td class="woocommerce-orders-table__cell" style="padding-left:8px;">#' . esc_html( $custom_voucher_id ) . '</td>';
+              }
+              echo '<td class="woocommerce-orders-table__cell" style="padding-left:8px;">' . esc_html( $voucher_date ) . '</td>';
+              echo '<td class="woocommerce-orders-table__cell" style="padding-left:8px;">' . esc_html( $voucher_status === '' ? 'Active' : $voucher_status ) . '</td>';
+              echo '<td class="woocommerce-orders-table__cell" style="padding-left:8px;">' . ( $pdf_url ? '<a download href="' . esc_url($pdf_url) . '">Download</a>' : '&nbsp;' ) . '</td>';
+              echo '</tr>';
+          }
+      }
+
+      echo '</table>';
+      wp_reset_postdata();
+  } else {
+      echo 'No vouchers found.';
+  }
+}
+
+// -------------------------
+// Admin: show voucher codes on order screen
+// -------------------------
+
+add_action( 'woocommerce_admin_order_data_after_billing_address', 'display_order_voucher_codes', 10, 1 );
+function display_order_voucher_codes( $order ){ // Imported orders helper
+    $voucher_codes = get_post_meta( $order->get_id(), '_order_voucher_codes', true );
+    if ( ! empty( $voucher_codes ) && is_array($voucher_codes) ) {
+        echo '<div class="order_data_column">';
+        echo '<h4>' . __( 'Voucher Codes', 'woocommerce' ) . '</h4><ul>';
+        foreach ( $voucher_codes as $code ) {
+            $voucher_post = get_posts(array(
+                'post_type' => 'voucher',
+                'meta_query' => array(
+                    array(
+                        'key' => '_voucher_id',
+                        'value' => $code,
+                    ),
+                ),
+                'posts_per_page' => 1,
+            ));
+            if ( $voucher_post ) {
+                $voucher_post_id = $voucher_post[0]->ID;
+                $voucher_edit_url = get_edit_post_link($voucher_post_id);
+                echo '<li><a href="' . esc_url($voucher_edit_url) . '">' . esc_html($code) . '</a></li>';
+            } else {
+                echo '<li>' . esc_html($code) . '</li>';
+            }
+        }
+        echo '</ul></div>';
+    }
+}
+
+add_action( 'woocommerce_admin_order_data_after_billing_address', 'display_order_voucher_codes2', 11, 1 );
+function display_order_voucher_codes2( $order ){ // New orders
+    $items = $order->get_items();
+    $all_voucher_codes = array();
+
+    foreach ( $items as $item_id => $item ) {
+        $voucher_id  = wc_get_order_item_meta( $item_id, '_voucher_id' );
+        $voucher_ids = wc_get_order_item_meta( $item_id, '_voucher_ids' );
+        $codes = array();
+
+        if ( ! empty( $voucher_id ) ) {
+            $codes[] = $voucher_id;
+        }
+        if ( ! empty( $voucher_ids ) && is_string( $voucher_ids ) ) {
+            $codes[] = $voucher_ids;
+        }
+        if ( ! empty( $voucher_ids ) && is_array( $voucher_ids ) ) {
+            $codes = array_merge( $codes, $voucher_ids );
+        }
+
+        $all_voucher_codes = array_merge( $all_voucher_codes, $codes );
+    }
+
+    if ( ! empty( $all_voucher_codes ) ) {
+        echo '<div class="order_data_column">';
+        echo '<h4>' . __( 'Voucher Codes', 'woocommerce' ) . '</h4><ul>';
+        foreach ( $all_voucher_codes as $code ) {
+            $voucher_post = get_posts(array(
+                'post_type' => 'voucher',
+                'meta_query' => array(
+                    array(
+                        'key' => '_voucher_id',
+                        'value' => $code,
+                    ),
+                ),
+                'posts_per_page' => 1,
+            ));
+            if ( $voucher_post ) {
+                $voucher_post_id = $voucher_post[0]->ID;
+                $voucher_edit_url = get_edit_post_link($voucher_post_id);
+                echo '<li><a href="' . esc_url($voucher_edit_url) . '">' . esc_html($code) . '</a></li>';
+            } else {
+                echo '<li>' . esc_html($code) . '</li>';
+            }
+        }
+        echo '</ul>';
+        echo '<a target="_blank" href="/wp-admin/edit.php?s=%2B' . urlencode( $order->get_order_number() ) . '&post_status=all&post_type=voucher&action=-1&m=0&paged=1&action2=-1">Find Vouchers</a>';
+        echo '</div>';
+    }
+}
+
+// -------------------------
+// AJAX: regenerate voucher PDF
+// -------------------------
+
+add_action( 'wp_ajax_regenerate_voucher', 'handle_regenerate_voucher' );
+function handle_regenerate_voucher() {
+    check_ajax_referer( 'regenerate_voucher_nonce', 'security' ); // if you add nonce on the caller
+
+    vcp_ensure_dir( VCP_VOUCHERS_DIR );
+
+    $order_id        = isset($_POST['order_id'])        ? intval($_POST['order_id']) : 0;
+    $voucher_id      = isset($_POST['voucher_id'])      ? sanitize_text_field($_POST['voucher_id']) : '';
+    $voucher_date    = isset($_POST['voucher_date'])    ? sanitize_text_field($_POST['voucher_date']) : '';
+    $expiration_date = isset($_POST['expiration_date']) ? sanitize_text_field($_POST['expiration_date']) : '';
+    $product_id      = isset($_POST['product_id'])      ? intval($_POST['product_id']) : 0;
+    $is_import       = isset($_POST['is_import'])       ? intval($_POST['is_import']) : 0;
+
+    $args = array(
+        'post_type'      => 'voucher',
+        'meta_query'     => array(
+            array(
+                'key'   => '_voucher_id',
+                'value' => $voucher_id,
+                'compare' => '=',
+            ),
+        ),
+        'posts_per_page' => 1,
+    );
+
+    $query = new WP_Query($args);
+
+    $barcode_img  = '';
+    $barcode_code = '';
+    $firstname = '';
+    $lastname  = '';
+    $meta_order_email = '';
+    $meta_product_name = '';
+    $meta_prd_sku = '';
+    $meta_prd_image_url = '';
+    $meta_prd_description = 'Description';
+    $meta_prd_price = '0.00';
+    $meta_prd_addons = '';
+
+    if ( $query->have_posts() ) {
+        $query->the_post();
+        $post_id = get_the_ID();
+        $all_meta_for_post = get_post_meta($post_id);
+
+        $barcode_img  = isset($all_meta_for_post['_voucher_barcode_vertical'][0]) ? $all_meta_for_post['_voucher_barcode_vertical'][0] : '';
+        $barcode_code = isset($all_meta_for_post['_voucher_barcode_code'][0]) ? $all_meta_for_post['_voucher_barcode_code'][0] : '';
+
+        if ( intval($is_import) ) {
+          $meta_product_name    = isset($all_meta_for_post['_product_name'][0]) ? $all_meta_for_post['_product_name'][0] : '';
+          $meta_order_number    = isset($all_meta_for_post['_order_number'][0]) ? $all_meta_for_post['_order_number'][0] : '';
+          $meta_customer_fullname = isset($all_meta_for_post['_customer_name'][0]) ? $all_meta_for_post['_customer_name'][0] : '';
+          $fullName = preg_replace('/\s+/', ' ', trim( $meta_customer_fullname));
+          $parts = explode(' ', $fullName);
+          if ( ! empty($parts[0]) ) $firstname = $parts[0];
+          if ( ! empty($parts[1]) ) $lastname  = $parts[1];
+          $meta_order_email     = isset($all_meta_for_post['_customer_email'][0]) ? $all_meta_for_post['_customer_email'][0] : '';
+          $meta_prd_sku         = '';
+          $meta_prd_image_url   = $_SERVER['DOCUMENT_ROOT'].'/wp-content/uploads/2024/03/default-product-image.png';
+          $meta_prd_description = 'Description';
+          $meta_prd_price       = number_format( (float) ( isset($all_meta_for_post['_amount'][0]) ? $all_meta_for_post['_amount'][0] : 0 ), 2, '.', '' );
+          $meta_prd_addons      = '';
+        }
+        wp_reset_postdata();
+    }
+
+    if ( intval($is_import) ) {
+      $vfile_url = generate_order_html_file(
+        $order_id,
+        $voucher_id,
+        $order_id,
+        $firstname,
+        $lastname,
+        $meta_order_email,
+        $meta_prd_sku,
+        $meta_product_name,
+        $meta_prd_image_url,
+        $meta_prd_description,
+        $meta_prd_price,
+        $meta_prd_description,
+        $expiration_date,
+        $meta_prd_addons,
+        true,
+        $barcode_code,
+        $barcode_img
+      );
+
+      if ( $vfile_url ) {
+        wp_send_json_success( array( 'file_url' => $vfile_url, 'isImport' => true ) );
+      } else {
+        wp_send_json_error('Error generating file');
+      }
+      wp_die();
+    }
+
+    // For non-imported orders:
+    $order = wc_get_order( $order_id );
+    if ( ! $order ) {
+      wp_send_json_error('Order not found');
+      wp_die();
+    }
+
+    $items = $order->get_items();
+    $order_number = $order->get_order_number();
+    $customer_email = $order->get_billing_email();
+    $customer_first_name = $order->get_billing_first_name();
+    $customer_last_name  = $order->get_billing_last_name();
+
+    foreach ( $items as $item_id => $item ) {
+      $product = $item->get_product();
+      if ( ! $product ) continue;
+      if ( (int) $product->get_id() !== (int) $product_id ) continue;
+
+      $product_name       = $product->get_name();
+      $product_sku        = $product->get_sku();
+      $short_description  = $product->get_short_description();
+      $quantity           = max(1, (int) $item->get_quantity() );
+      $product_description= get_post_field( 'post_content', $product_id );
+      $product_price      = $quantity > 0 ? $item->get_total() / $quantity : 0;
+      $product_price      = number_format( (float)$product_price, 2, '.', '' );
+
+      $product_image_id   = $product->get_image_id();
+      $product_image_url  = wp_get_attachment_image_url( $product_image_id, 'full' );
+
+      $addons_list = array();
+      foreach ( $item->get_meta_data() as $meta_data ) {
+          if ( 'ADD-ONS' === $meta_data->key ) $addons_list[] = $meta_data->value;
+      }
+      $addons_string = implode(', ', $addons_list);
+
+      $file_url = generate_order_html_file(
+        $order_id,
+        $voucher_id,
+        $order_number,
+        $customer_first_name,
+        $customer_last_name,
+        $customer_email,
+        $product_sku,
+        $product_name,
+        $product_image_url,
+        $product_description,
+        $product_price,
+        $short_description,
+        $expiration_date,
+        $addons_string,
+        true,
+        $barcode_code,
+        $barcode_img
+      );
+
+      if ( $file_url ) {
+        wp_send_json_success( array( 'file_url' => $file_url, 'isImport' => false ) );
+      } else {
+        wp_send_json_error('Error generating file');
+      }
+      wp_die();
+    }
+
+    wp_send_json_error('Product not found on order');
+    wp_die();
+}
+
+// -------------------------
+// Admin CSS for Voucher screens (optional)
+// -------------------------
+
+add_action('admin_enqueue_scripts', function () {
+    $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+    if ( $screen && $screen->post_type === 'voucher' ) {
+        wp_enqueue_style(
+            'vouchers-admin-css',
+            plugins_url('admin-styles.css', __FILE__),
+            [],
+            file_exists(plugin_dir_path(__FILE__) . 'admin-styles.css') ? filemtime(plugin_dir_path(__FILE__) . 'admin-styles.css') : null
+        );
+    }
+});
+
+// If you have additional admin UI:
+if ( file_exists( plugin_dir_path(__FILE__) . 'voucher-admin.php' ) ) {
+    include plugin_dir_path(__FILE__) . 'voucher-admin.php';
+}

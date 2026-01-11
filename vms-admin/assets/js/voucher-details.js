@@ -101,8 +101,8 @@
     if (order) {
       const products = Array.isArray(order.products) ? order.products : []
       const firstProduct = products[0] || {}
-      const unitPrice = Number(wp.product_price || firstProduct.product_price || 0)
-      const productName = wp.product_name || firstProduct.product_name || "-"
+      const unitPrice = Number(v.face_value || wp.product_price || firstProduct.product_price || 0)
+      const productName = v.title || wp.product_name || firstProduct.product_name || "-"
       const productSku = wp.product_sku || firstProduct.product_id || "-"
       const productDesc = wp.product_description || ""
       const productImg = wp.product_image || ""
@@ -158,7 +158,7 @@
               <tfoot>
                 <tr class="vms-order-total">
                   <td colspan="5">Subtotal</td>
-                  <td>${Number(order.order_total || order.amount || 0).toFixed(2)}</td>
+                  <td>${Number(order.subtotal || order.order_total || order.amount || 0).toFixed(2)}</td>
                 </tr>
                 <tr class="vms-order-total">
                   <td colspan="5">Grand Total</td>
@@ -199,7 +199,7 @@
         format: "CODE128",
         width: 3,
         height: 80,
-        displayValue: true,
+        displayValue: false,
       });
     } catch (e) {}
   }
@@ -218,10 +218,28 @@ option>`
       .join("");
     VMSModal.open(
       "Redeem Voucher",
-      `<p>Code: <strong>${code}</strong></
-p><label>Salon <select id="vms-redeem-salon">${options}</select></
-label><label>Notes <input id="vms-redeem-notes" class="regular-text" /></
-label>`,
+      `<table class="form-table" role="presentation">
+  <tbody>
+    <tr>
+      <th scope="row"><label>Code</label></th>
+      <td><strong>${code}</strong></td>
+    </tr>
+
+    <tr>
+      <th scope="row"><label for="vms-redeem-salon">Salon</label></th>
+      <td>
+        <select id="vms-redeem-salon">${options}</select>
+      </td>
+    </tr>
+
+    <tr>
+      <th scope="row"><label for="vms-redeem-notes">Notes</label></th>
+      <td>
+        <input id="vms-redeem-notes" type="text" class="regular-text" />
+      </td>
+    </tr>
+  </tbody>
+</table>`,
       `<button class="button button-primary" id="vms-go">Redeem</button>
 <button class="button" id="vms-c">Cancel</button>`
     );
@@ -310,10 +328,9 @@ label>`,
       customer_name: wp.customer_name || "",
       customer_email: wp.customer_email || "",
       expiry_date: v.expires_at ? new Date(v.expires_at).toISOString().slice(0, 10) : "",
-      product_price: wp.product_price ? `$${wp.product_price}` : "",
+      product_price: v.face_value ? `$${Number(v.face_value).toFixed(2)}` : "",
       product_image: wp.product_image || "",
       barcode: barcodeData,
-      barcode_code: v.code || "",
       LC_TITLE: (VMSAdmin.pdf && VMSAdmin.pdf.lc_title) || "",
       LC_TEXT: (VMSAdmin.pdf && VMSAdmin.pdf.lc_text) || "",
       CC_TITLE: (VMSAdmin.pdf && VMSAdmin.pdf.cc_title) || "",
@@ -444,7 +461,6 @@ label>`,
           <div class="voucher-coupon__code">
             <div class="voucher-coupon__code-inner">
               <img class="barcode-img" src="{{barcode}}" alt="Barcode" />
-              <div class="barcode-human ff2">{{barcode_code}}</div>
             </div>
           </div>
         </div>

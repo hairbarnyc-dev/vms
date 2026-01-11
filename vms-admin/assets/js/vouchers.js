@@ -89,13 +89,21 @@ option>`
       "Redeem Voucher",
       `
  <div>
- <p><strong>Code:</strong> ${code}</p>
- <label>Salon
- <select id="vms-redeem-salon">${options}</select>
- </label>
- <label>Notes
- <input id="vms-redeem-notes" class="regular-text" />
- </label>
+ <table class="form-table" role="presentation">
+ <tbody>
+ <tr>
+  <th scope="row"><label for="blogname">Code</label></th>
+  <td>${code}</td>
+ </tr>
+ <tr>
+  <th scope="row"><label for="blogname">Salon</label></th>
+  <td><select id="vms-redeem-salon">${options}</select></td>
+ </tr>
+ <tr>
+  <th scope="row"><label for="blogname">Notes</label></th>
+  <td><input id="vms-redeem-notes" type="text" class="regular-text"  /></td>
+ </tr>
+ </tbody></table>
  </div>
  `,
       `

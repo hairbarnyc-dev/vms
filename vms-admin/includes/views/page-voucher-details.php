@@ -19,4 +19,4 @@
 wp_enqueue_script('vms-qrcode', VMS_ADMIN_URL.'assets/vendor/qrcode.min.js', [], VMS_ADMIN_VERSION, true);
 wp_enqueue_script('vms-jsbarcode', VMS_ADMIN_URL.'assets/vendor/jsbarcode.min.js', [], VMS_ADMIN_VERSION, true);
 wp_enqueue_script('vms-jspdf', VMS_ADMIN_URL.'assets/vendor/jspdf.umd.min.js', [], VMS_ADMIN_VERSION, true);
-wp_enqueue_script('vms-voucher-details', VMS_ADMIN_URL.'assets/js/voucher-details.js', ['vms-admin-js','vms-qrcode','vms-jsbarcode','vms-jspdf'], VMS_ADMIN_VERSION, true);
+wp_enqueue_script('vms-voucher-details', VMS_ADMIN_URL.'assets/js/voucher-details.js?t='.time(), ['vms-admin-js','vms-qrcode','vms-jsbarcode','vms-jspdf'], VMS_ADMIN_VERSION, true);
