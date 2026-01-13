@@ -24,6 +24,7 @@ require_once VMS_ADMIN_PATH . 'includes/class-vms-admin-menu.php';
 require_once VMS_ADMIN_PATH . 'includes/class-vms-settings.php';
 require_once VMS_ADMIN_PATH . 'includes/class-vms-api.php';
 require_once VMS_ADMIN_PATH . 'includes/class-vms-ajax.php';
+require_once VMS_ADMIN_PATH . 'includes/class-vms-pdf.php';
 require_once VMS_ADMIN_PATH . 'includes/class-vms-woo.php';
 }
 

@@ -53,5 +53,6 @@
 
 <?php
 wp_enqueue_style('vms-vouchers-css', VMS_ADMIN_URL.'assets/css/vouchers.css', [], VMS_ADMIN_VERSION);
-wp_enqueue_script('vms-vouchers-js', VMS_ADMIN_URL.'assets/js/vouchers.js?t='.time(), ['vms-admin-js'], VMS_ADMIN_VERSION, true);
+wp_enqueue_script('vms-datatables', VMS_ADMIN_URL.'assets/vendor/datatables.min.js', ['jquery'], VMS_ADMIN_VERSION, true);
+wp_enqueue_script('vms-vouchers-js', VMS_ADMIN_URL.'assets/js/vouchers.js?t='.time(), ['vms-admin-js', 'vms-datatables'], VMS_ADMIN_VERSION, true);
 wp_enqueue_script('vms-salons-js', VMS_ADMIN_URL.'assets/js/salons.js', ['vms-admin-js'], VMS_ADMIN_VERSION, true);

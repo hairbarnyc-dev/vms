@@ -6,77 +6,46 @@
     });
     return res && res.success ? res.data : [];
   }
-  async function fetchVouchers(payload) {
-    const res = await $.post(
-      VMSAdmin.ajax,
-      Object.assign(
-        {
-          action: "vms_fetch_vouchers",
-          nonce: VMSAdmin.nonce,
-          page: 1,
-          pageSize: 100,
-        },
-        payload
-      )
-    );
-    if (!res || !res.success) throw new Error("Failed to load vouchers");
-    if (Array.isArray(res.data)) return res.data;
-    if (res.data && Array.isArray(res.data.items)) return res.data.items;
-    if (res.data && Array.isArray(res.data.rows)) return res.data.rows;
-    return [];
+  function buildOrderCell(v) {
+    const wp = v.wp || {};
+    const orderNumber =
+      wp.order_number || v.order_number || v.order_external_id || v.order_id || "-";
+    const orderLink = wp.order_id
+      ? `${VMSAdmin.base}?post=${encodeURIComponent(wp.order_id)}&action=edit`
+      : "";
+    return orderLink ? `<a href="${orderLink}">${orderNumber}</a>` : orderNumber;
   }
-  function renderRows(items) {
-    if (!Array.isArray(items) || !items.length)
-      return '<tr><td colspan="11"><em>No vouchers found.</em></td></tr>';
-    return items
-      .map((v) => {
-        const wp = v.wp || {};
-        const orderNumber =
-          wp.order_number || v.order_number || v.order_external_id || v.order_id || "-";
-        const orderLink = wp.order_id
-          ? `${VMSAdmin.base}?post=${encodeURIComponent(wp.order_id)}&action=edit`
-          : "";
-        const serviceName = wp.product_name || v.title || "-";
-        const voucherValue = wp.product_price || v.face_value || "0.00";
-        const grandTotal = wp.grand_total || v.order_total || v.face_value || "0.00";
-        const customerName = wp.customer_name || v.customer_name || "-";
-        const customerEmail = wp.customer_email || v.customer_email || "";
-        const customerLink = wp.customer_link || "";
-        const voucherDate = v.created_at
-          ? new Date(v.created_at).toLocaleDateString()
-          : "";
-        const expDate = v.expires_at
-          ? new Date(v.expires_at).toLocaleDateString()
-          : "";
-        const isRedeemed = String(v.status || "").toUpperCase() === "REDEEMED";
-        const redeemedAt = v.redeemed_at
-          ? new Date(v.redeemed_at).toLocaleDateString()
-          : "";
-        const redeemedSalon = v.redeemed_salon_name || v.salon_name || "-";
-        const redeemedCell = isRedeemed
-          ? (redeemedAt ? `${redeemedSalon}<br>${redeemedAt}` : redeemedSalon)
-          : "—";
-        const actions = `
- <button class="button vms-act-redeem" data-code="${v.code}">Redeem</button>
- <button class="button vms-act-void" data-code="${v.code}">Void</button>
- `;
-        return `<tr>
-          <td><a href="${VMSAdmin.base}?page=vms-admin-voucher-details&code=${encodeURIComponent(v.code)}">${v.code}</a></td>
-          <td>${orderLink ? `<a href="${orderLink}">${orderNumber}</a>` : orderNumber}</td>
-          <td>${serviceName}</td>
-          <td>${voucherValue}</td>
-          <td>${grandTotal}</td>
-          <td>${customerLink ? `<a href="${customerLink}">${customerName}</a>` : customerName}${
-            customerEmail ? `<br><a href="mailto:${customerEmail}">${customerEmail}</a>` : ""
-          }</td>
-          <td>${voucherDate}</td>
-          <td>${expDate}</td>
-          <td>${v.status || ""}</td>
-          <td>${redeemedCell}</td>
-          <td>${actions}</td>
-        </tr>`;
-      })
-      .join("");
+  function buildCustomerCell(v) {
+    const wp = v.wp || {};
+    const customerName = wp.customer_name || v.customer_name || "-";
+    const customerEmail = wp.customer_email || v.customer_email || "";
+    const customerLink = wp.customer_link || "";
+    const nameHtml = customerLink
+      ? `<a href="${customerLink}">${customerName}</a>`
+      : customerName;
+    const emailHtml = customerEmail
+      ? `<br><a href="mailto:${customerEmail}">${customerEmail}</a>`
+      : "";
+    return `${nameHtml}${emailHtml}`;
+  }
+  function buildRedeemedCell(v) {
+    const isRedeemed = String(v.status || "").toUpperCase() === "REDEEMED";
+    const redeemedAt = v.redeemed_at
+      ? new Date(v.redeemed_at).toLocaleDateString()
+      : "";
+    const redeemedSalon = v.redeemed_salon_name || v.salon_name || "-";
+    return isRedeemed
+      ? redeemedAt
+        ? `${redeemedSalon}<br>${redeemedAt}`
+        : redeemedSalon
+      : "—";
+  }
+  function buildActionsCell(v) {
+    return `
+      <button class="button vms-act-redeem" data-code="${v.code}">Redeem</button>
+      <button class="button vms-act-void" data-code="${v.code}">Void</button>
+      <a class="button" target="_blank" href="${VMSAdmin.ajax}?action=vms_voucher_pdf&nonce=${encodeURIComponent(VMSAdmin.nonce)}&code=${encodeURIComponent(v.code)}">Download PDF</a>
+    `;
   }
   function redeemModal(code, salons) {
     const options = salons
@@ -177,21 +146,85 @@ option>`)
     } catch (e) {
       console.warn("salons fetch failed");
     }
-    // submit filters
-    jQuery("#vms-filters").on("submit", async function (e) {
-      e.preventDefault();
-      const payload = Object.fromEntries(new FormData(this).entries());
-      try {
-        const items = await fetchVouchers(payload);
-        jQuery("#vms-vouchers-table tbody").html(renderRows(items));
-      } catch (err) {
-        jQuery("#vms-vouchers-table tbody").html(
-          '<tr><td colspan="9">Error loading vouchers</td></tr>'
-        );
-      }
+    const $table = jQuery("#vms-vouchers-table");
+    const $filters = jQuery("#vms-filters");
+    const dt = $table.DataTable({
+      processing: true,
+      serverSide: true,
+      stateSave: true,
+      pageLength: 50,
+      order: [],
+      ajax: function (data, callback) {
+        const formData = Object.fromEntries(new FormData($filters[0]).entries());
+        const dtSearch = data.search && data.search.value ? data.search.value : "";
+        if (dtSearch) formData.q = dtSearch;
+        jQuery
+          .post(VMSAdmin.ajax, {
+            action: "vms_fetch_vouchers",
+            nonce: VMSAdmin.nonce,
+            draw: data.draw,
+            start: data.start,
+            length: data.length,
+            status: formData.status || "",
+            salon_id: formData.salon_id || "",
+            q: formData.q || "",
+            date_from: formData.date_from || "",
+            date_to: formData.date_to || "",
+          })
+          .done(function (res) {
+            if (!res || !res.success) {
+              callback({ draw: data.draw, recordsTotal: 0, recordsFiltered: 0, data: [] });
+              return;
+            }
+            const items = (res.data && res.data.items) || [];
+            const total = res.data && typeof res.data.total === "number" ? res.data.total : items.length;
+            callback({
+              draw: data.draw,
+              recordsTotal: total,
+              recordsFiltered: total,
+              data: items,
+            });
+          })
+          .fail(function () {
+            callback({ draw: data.draw, recordsTotal: 0, recordsFiltered: 0, data: [] });
+          });
+      },
+      columns: [
+        {
+          data: "code",
+          render: function (data, type, row) {
+            if (type !== "display") return data;
+            const code = row.code || "";
+            return `<a href="${VMSAdmin.base}?page=vms-admin-voucher-details&code=${encodeURIComponent(code)}">${code}</a>`;
+          },
+        },
+        { data: null, render: function (_, type, row) { return type === "display" ? buildOrderCell(row) : ""; } },
+        { data: null, render: function (_, type, row) { const wp = row.wp || {}; return type === "display" ? (wp.product_name || row.title || "-") : ""; } },
+        { data: null, render: function (_, type, row) { const wp = row.wp || {}; return type === "display" ? (wp.product_price || row.face_value || "0.00") : ""; } },
+        { data: null, render: function (_, type, row) { const wp = row.wp || {}; return type === "display" ? (wp.grand_total || row.order_total || row.face_value || "0.00") : ""; } },
+        { data: null, render: function (_, type, row) { return type === "display" ? buildCustomerCell(row) : ""; } },
+        { data: "created_at", render: function (data, type) { return type === "display" && data ? new Date(data).toLocaleDateString() : ""; } },
+        { data: "expires_at", render: function (data, type) { return type === "display" && data ? new Date(data).toLocaleDateString() : ""; } },
+        { data: "status", render: function (data, type) { return type === "display" ? (data || "") : data; } },
+        { data: null, render: function (_, type, row) { return type === "display" ? buildRedeemedCell(row) : ""; } },
+        { data: null, orderable: false, searchable: false, render: function (_, type, row) { return type === "display" ? buildActionsCell(row) : ""; } },
+      ],
+      stateSaveParams: function (settings, state) {
+        state.vmsFilters = Object.fromEntries(new FormData($filters[0]).entries());
+      },
+      stateLoadParams: function (settings, state) {
+        if (!state.vmsFilters) return;
+        Object.entries(state.vmsFilters).forEach(([key, val]) => {
+          const $field = $filters.find(`[name="${key}"]`);
+          if ($field.length) $field.val(val);
+        });
+      },
     });
-    // initial load
-    jQuery("#vms-filters").trigger("submit");
+
+    $filters.on("submit", function (e) {
+      e.preventDefault();
+      dt.ajax.reload();
+    });
     // actions
     jQuery("#vms-vouchers-table").on(
       "click",

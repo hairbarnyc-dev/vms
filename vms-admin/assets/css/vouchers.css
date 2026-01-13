@@ -1,2 +1,8 @@
 #vms-filters label { margin-right: 12px; }
 #vms-vouchers-table td, #vms-vouchers-table th { vertical-align: middle; }
+.dataTables_wrapper .dataTables_length,
+.dataTables_wrapper .dataTables_filter { margin: 8px 0; }
+.dataTables_wrapper .dataTables_info { margin-top: 8px; }
+.dataTables_wrapper .dataTables_paginate { margin-top: 8px; }
+.dataTables_wrapper .paginate_button { margin-left: 4px; }
+.dataTables_wrapper .paginate_button.current { font-weight: 600; }

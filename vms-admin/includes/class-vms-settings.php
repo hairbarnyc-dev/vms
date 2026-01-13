@@ -28,6 +28,7 @@ class Settings
     const OPT_PDF_HELP_TITLE = 'vms_pdf_help_title';
     const OPT_PDF_HELP_TEXT = 'vms_pdf_help_text';
     const OPT_PDF_WEEKDAYS = 'vms_pdf_weekdays';
+    const OPT_EMAIL_SEND = 'vms_send_voucher_email';
 
 
     public static function init()
@@ -59,6 +60,7 @@ class Settings
         register_setting('vms_admin', self::OPT_PDF_HELP_TITLE, ['type'=>'string','sanitize_callback'=>'sanitize_text_field']);
         register_setting('vms_admin', self::OPT_PDF_HELP_TEXT, ['type'=>'string','sanitize_callback'=>'sanitize_textarea_field']);
         register_setting('vms_admin', self::OPT_PDF_WEEKDAYS, ['type'=>'string','sanitize_callback'=>'sanitize_textarea_field']);
+        register_setting('vms_admin', self::OPT_EMAIL_SEND, ['type'=>'boolean','sanitize_callback'=>'absint']);
     
         add_settings_section('vms_admin_main', __('VMS Settings','vms-admin'), function(){
           echo '<p>'.esc_html__('Configure API and voucher behavior.','vms-admin').'</p>';
@@ -70,6 +72,7 @@ class Settings
         add_settings_field(self::OPT_API_TOKEN, __('API Token (optional PAT)','vms-admin'), [__CLASS__,'field_api_token'], 'vms_admin', 'vms_admin_main');    // optional fallback
         add_settings_field(self::OPT_CAT_ID, __('Voucher Category','vms-admin'), [__CLASS__,'field_cat'], 'vms_admin', 'vms_admin_main');
         add_settings_field(self::OPT_MULTIPLIER, __('Amount Multiplier','vms-admin'), [__CLASS__,'field_mult'], 'vms_admin', 'vms_admin_main');
+        add_settings_field(self::OPT_EMAIL_SEND, __('Send Voucher Emails','vms-admin'), [__CLASS__,'field_email_send'], 'vms_admin', 'vms_admin_main');
 
         add_settings_section('vms_admin_pdf', __('Voucher PDF Template','vms-admin'), function(){
           echo '<p>'.esc_html__('Configure voucher PDF template fields.','vms-admin').'</p>';
@@ -125,6 +128,13 @@ class Settings
     {
         $v = esc_attr(get_option(self::OPT_MULTIPLIER, '1.0'));
         echo '<input type="number" step="0.1" min="0.1" name="' . self::OPT_MULTIPLIER . '" value="' . $v . '" />';
+    }
+    public static function field_email_send()
+    {
+        $v = (int) get_option(self::OPT_EMAIL_SEND, 0);
+        echo '<label><input type="checkbox" name="' . self::OPT_EMAIL_SEND . '" value="1" ' . checked(1, $v, false) . ' /> ';
+        echo esc_html__('Attach voucher PDFs to customer emails (processing/completed).', 'vms-admin');
+        echo '</label>';
     }
     public static function field_pdf_logo()
     {

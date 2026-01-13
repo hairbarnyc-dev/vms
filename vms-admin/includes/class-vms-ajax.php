@@ -11,6 +11,7 @@ add_action('wp_ajax_vms_redeem_voucher', [__CLASS__,'redeem_voucher']);
 add_action('wp_ajax_vms_void_voucher', [__CLASS__,'void_voucher']);
 add_action('wp_ajax_vms_sync_vouchers', [__CLASS__,'sync_vouchers']);
 add_action('wp_ajax_vms_sync_salons', [__CLASS__,'sync_salons']);
+add_action('wp_ajax_vms_voucher_pdf', [__CLASS__,'voucher_pdf']);
 }
 protected static function check_nonce(){
   check_ajax_referer('vms_admin_nonce','nonce');
@@ -30,9 +31,17 @@ public static function fetch_salons(){
 }
 public static function fetch_vouchers(){
 self::check_nonce();
+$start = isset($_POST['start']) ? absint($_POST['start']) : 0;
+$length = isset($_POST['length']) ? absint($_POST['length']) : 0;
+$page = isset($_POST['page']) ? absint($_POST['page']) : 0;
+$pageSize = isset($_POST['pageSize']) ? absint($_POST['pageSize']) : 0;
+if ($length > 0) {
+  $pageSize = $length;
+  $page = (int) floor($start / max(1, $length)) + 1;
+}
 $query = [
-'page' => isset($_POST['page']) ? absint($_POST['page']) : '',
-'pageSize' => isset($_POST['pageSize']) ? absint($_POST['pageSize']) : '',
+'page' => $page ?: 1,
+'pageSize' => $pageSize ?: 50,
 'status' => isset($_POST['status']) ?
 sanitize_text_field($_POST['status']) : '',
 'salon_id' => (isset($_POST['salon_id']) && $_POST['salon_id'] !== '') ? absint($_POST['salon_id']) : '',
@@ -42,13 +51,16 @@ sanitize_text_field($_POST['date_from']) : '',
 'date_to' => isset($_POST['date_to']) ?
 sanitize_text_field($_POST['date_to']) : '',
 ];
-$data = API::vouchers(array_filter($query, fn($v)=>$v!=='' && $v!==null));
+$query = array_filter($query, fn($v)=>$v!=='' && $v!==null);
+$query['include_total'] = 1;
+$data = API::vouchers($query);
 if (is_wp_error($data)) wp_send_json_error($data->get_error_data(), 400);
 $list = is_array($data) && array_key_exists('data', $data) ? $data['data'] : $data;
 if (is_array($list)) {
   $list = array_map([__CLASS__, 'augment_voucher_list_item'], $list);
 }
-wp_send_json_success($list);
+$total = is_array($data) && isset($data['total']) ? (int) $data['total'] : (is_array($list) ? count($list) : 0);
+wp_send_json_success(['items' => $list, 'total' => $total]);
 }
 public static function fetch_voucher_details(){
 self::check_nonce();
@@ -77,6 +89,14 @@ if (!$code) wp_send_json_error('missing code', 400);
 $data = API::void($code, $notes);
 if (is_wp_error($data)) wp_send_json_error($data->get_error_data(), 400);
 wp_send_json_success($data);
+}
+
+public static function voucher_pdf(){
+  self::check_nonce();
+  $code = sanitize_text_field($_GET['code'] ?? '');
+  if (!$code) wp_die('Missing code');
+  if (!class_exists('VMS_Admin\\PDF')) wp_die('PDF engine not available');
+  PDF::stream_pdf($code);
 }
 
 public static function sync_vouchers(){
@@ -171,6 +191,10 @@ public static function sync_salons(){
   $map = self::get_salon_map();
   $vms_salons = self::fetch_vms_salons();
   $lookup = self::build_salon_lookup($vms_salons);
+  $vms_ids = [];
+  foreach ($vms_salons as $salon) {
+    if (is_array($salon) && isset($salon['id'])) $vms_ids[(int) $salon['id']] = true;
+  }
 
   foreach ($salon_posts as $sid) {
     $name = get_the_title($sid);
@@ -180,8 +204,12 @@ public static function sync_salons(){
     }
     $key = strtolower($name);
     if (isset($map[$sid]) && (int) $map[$sid] > 0) {
-      $skipped++;
-      continue;
+      $mapped_id = (int) $map[$sid];
+      if (isset($vms_ids[$mapped_id])) {
+        $skipped++;
+        continue;
+      }
+      unset($map[$sid]);
     }
     if (isset($lookup[$key])) {
       $map[$sid] = (int) $lookup[$key]['id'];
@@ -472,7 +500,7 @@ protected static function normalize_date($raw){
   return '';
 }
 
-protected static function augment_with_wc_order($data){
+public static function augment_with_wc_order($data){
   if (!is_array($data) || !class_exists('WooCommerce') || !function_exists('wc_get_order')) return $data;
   $code = !empty($data['code']) ? (string) $data['code'] : '';
   $voucher_value = isset($data['face_value']) ? (float) $data['face_value'] : 0.0;

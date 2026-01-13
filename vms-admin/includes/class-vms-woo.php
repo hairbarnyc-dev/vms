@@ -11,6 +11,7 @@ class Woo {
   public static function init(){
     if ( ! class_exists('WooCommerce') || ! function_exists('wc_get_order') ) return;
     add_action('woocommerce_checkout_order_processed', [__CLASS__, 'handle_completed_order'], 10, 1);
+    add_filter('woocommerce_email_attachments', [__CLASS__, 'attach_voucher_pdfs'], 10, 3);
   }
 
   protected static function item_in_category( $item, $cat_id ){
@@ -119,5 +120,31 @@ class Woo {
     $path = defined('VMS_ADMIN_PATH') ? VMS_ADMIN_PATH . self::DEBUG_LOG : '';
     if (!$path) return;
     @file_put_contents($path, $line, FILE_APPEND | LOCK_EX);
+  }
+
+  public static function attach_voucher_pdfs($attachments, $email_id, $order){
+    if (!$order || !is_a($order, 'WC_Order')) return $attachments;
+    if (!API::base()) return $attachments;
+    $enabled = (int) get_option(Settings::OPT_EMAIL_SEND, 0);
+    if (!$enabled) return $attachments;
+    if (!in_array($email_id, ['customer_processing_order', 'customer_completed_order'], true)) return $attachments;
+
+    $codes = [];
+    foreach ($order->get_items() as $item) {
+      $item_codes = $item->get_meta(self::ITEM_META_CODES, true);
+      if (is_string($item_codes)) $item_codes = [$item_codes];
+      if (is_array($item_codes)) $codes = array_merge($codes, $item_codes);
+      $single = $item->get_meta(self::META_VOUCHER_CODE, true);
+      if ($single) $codes[] = $single;
+    }
+    $codes = array_unique(array_filter(array_map('strval', $codes)));
+    if (!$codes) return $attachments;
+
+    foreach ($codes as $code) {
+      $file = PDF::generate_pdf_for_code($code);
+      if (is_wp_error($file)) continue;
+      if (file_exists($file)) $attachments[] = $file;
+    }
+    return $attachments;
   }
 }
