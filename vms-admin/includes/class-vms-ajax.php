@@ -265,8 +265,22 @@ protected static function build_legacy_payload($post_id, &$salon_map = [], &$vms
   $target_status = self::normalize_legacy_status($legacy_status);
   $is_redeem = get_post_meta($post_id, '_is_redeem', true);
   $redeem_flag = $is_redeem === '1' || $is_redeem === 1 || $is_redeem === true;
+  if (!$redeem_flag && is_string($is_redeem)) {
+    $redeem_flag = in_array(strtolower(trim($is_redeem)), ['yes', 'true', 'used', 'redeemed'], true);
+  }
   if (!$redeem_flag) {
     $redeem_flag = (bool) get_post_meta($post_id, '_date-redeem', true);
+  }
+  $log = get_post_meta($post_id, '_voucher_action_log', true);
+  if (!$redeem_flag && $log) {
+    $entries = is_array($log) ? $log : [$log];
+    foreach ($entries as $entry) {
+      if (!is_string($entry)) continue;
+      if (preg_match('/\b(used|redeem(ed)?)\b/i', $entry)) {
+        $redeem_flag = true;
+        break;
+      }
+    }
   }
   if ($redeem_flag) $target_status = 'REDEEMED';
   [$first_name, $last_name] = self::split_customer_name($customer_name);
@@ -438,6 +452,7 @@ protected static function resolve_vms_salon_id($sel_raw, &$map, &$vms_salons){
 protected static function normalize_salon_key($name){
   $name = strtolower(trim((string) $name));
   $name = preg_replace('/\s+/', ' ', $name);
+  $name = preg_replace('/\s+location$/', '', $name);
   return $name;
 }
 

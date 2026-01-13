@@ -1,10 +1,14 @@
 import { pool } from '../config/db.js'
 
 export const createVoucher = async (data, conn = null) => {
-  const { code, salon_id, order_id, customer_id, title, face_value, currency, expires_at, created_at } = data
+  const { code, salon_id, order_id, customer_id, title, face_value, currency, expires_at, created_at, status } = data
   const db = conn || pool
   const fields = ['code', 'salon_id', 'order_id', 'customer_id', 'title', 'face_value', 'currency', 'expires_at']
   const values = [code, salon_id || null, order_id || null, customer_id || null, title, face_value || 0, currency || 'CAD', expires_at]
+  if (status) {
+    fields.push('status')
+    values.push(status)
+  }
   if (created_at) {
     fields.push('created_at')
     values.push(created_at)

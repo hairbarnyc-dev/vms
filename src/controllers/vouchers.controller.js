@@ -268,6 +268,7 @@ const syncVoucherRecord = async (payload, req) => {
           currency: orderData.currency,
           expires_at: expiresAt,
           created_at: createdAt,
+          status: status,
         },
         conn
       )
