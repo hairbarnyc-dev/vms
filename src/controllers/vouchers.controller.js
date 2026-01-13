@@ -172,12 +172,15 @@ export const create = async (req, res, next) => {
   }
 }
 
-const findVoucherByCodeOrOrder = async (payload, conn) => {
+const findVoucherByCodeOrOrder = async (payload, conn, opts = {}) => {
+  const { allowOrderMatch = true, allowCodeUpdate = true } = opts
   const code = (payload.code || '').trim()
   if (code) {
     const byCode = await Vouchers.getByCode(code, conn)
     if (byCode) return { voucher: byCode, codeUpdated: false }
   }
+
+  if (!allowOrderMatch) return { voucher: null, codeUpdated: false }
 
   const orderData = normalizeOrderPayload(payload)
   if (!orderData.external_id) return { voucher: null, codeUpdated: false }
@@ -200,7 +203,7 @@ const findVoucherByCodeOrOrder = async (payload, conn) => {
     if (filtered.length === 1) match = filtered[0]
   }
 
-  if (match && code) {
+  if (match && code && allowCodeUpdate) {
     await Vouchers.update(match.id, { code }, conn)
     return { voucher: { ...match, code }, codeUpdated: true }
   }
@@ -243,7 +246,11 @@ const syncVoucherRecord = async (payload, req) => {
     const code = (payload.code || '').trim() || genCode()
     const status = payload.status || undefined
 
-    const existing = await findVoucherByCodeOrOrder({ ...payload, code }, conn)
+    const existing = await findVoucherByCodeOrOrder(
+      { ...payload, code },
+      conn,
+      { allowOrderMatch: false, allowCodeUpdate: false }
+    )
     let created = false
     let updated = false
     let codeUpdated = existing.codeUpdated
